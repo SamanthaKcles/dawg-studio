@@ -30,7 +30,7 @@ These features include:
 - You can now dock the script editor.
 - Undo/Redo functionality in the script editor.
 - New colors for commands, numbers, events, and more.
-- Flags now have a seperate color from numbers.
+- Flags now have a separate color from numbers.
 - Unrecognized commands are now highlighted in red. No more looking for that one typo that's crashing your game.
 - The editor no longer reads the first digit of face portraits. (D-RS/CS+ QoL)
 - Up to SIX operands are supported. (<SIXwwww:xxxx:yyyy:zzzz:qqqq:rrrr)
