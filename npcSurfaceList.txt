@@ -1,0 +1,40 @@
+0 - Title Screen
+1 - '2004.12 Studio Pixel'
+2 - current map tileset
+3 - unused
+4 - unused
+5 - unused
+6 - Fade
+7 - unused
+8 - ItemImage
+9 - Map system buffer
+10 - screen buffer
+11 - Arms
+12 - ArmsImage
+13 - MNA text buffer
+14 - StageImage
+15 - Loading
+16 - MyChar
+17 - Bullet
+18 - unused
+19 - Caret
+20 - Npc/NpcSym
+21 - Map NPC Set 1
+22 - Map NPC Set 2
+23 - Npc/NpcRegu
+24 - unused
+25 - unused
+26 - TextBox
+27 - Face
+28 - current map background
+29 - damage \# buffer
+30 - textbox buffer 1
+31 - textbox buffer 2
+32 - textbox buffer 3
+33 - unknown
+34 - unused
+35 - credits buffer 1
+36 - credits buffer 2
+37 - credits buffer 3
+38 - Unused
+39 - Unused

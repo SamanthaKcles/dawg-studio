@@ -1,0 +1,11 @@
+0 - Fixed
+1 - Follow Slowly
+2 - Follow Foreground
+3 - Foreground Water
+4 - Black
+5 - Scroll Fast Left
+6 - Parallax, Items fall left
+7 - Parallax scroll (clouds)
+8 - unused
+9 - unused
+10 - unused

@@ -1,0 +1,1 @@
+java -jar Studio.jar -Dsun.java2d.d3d=false "MODE=1" "BITMAPMODE=1"

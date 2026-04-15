@@ -1,0 +1,10 @@
+0 - No Boss
+1 - Omega
+2 - Balfrog
+3 - Monster X
+4 - Core
+5 - Ironhead
+6 - Dragon Sisters
+7 - Undead Core
+8 - Heavy Press
+9 - Ballos Ball
