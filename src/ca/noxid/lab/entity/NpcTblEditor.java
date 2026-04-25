@@ -74,6 +74,7 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 	private NpcPreviewPane previewPane;
 	private JComboBox<String> npcSheetSelector;
 	private EditorApp parentApp;
+	private boolean isPopulating = false;
 
 	public NpcTblEditor(Frame aFrame) {
 		super(aFrame);
@@ -134,7 +135,7 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 		entList.addListSelectionListener(new ListSelectionListener() {
 			@Override
 			public void valueChanged(ListSelectionEvent eve) {
-				if (entList.getSelectedValue() != null) {
+				if (!isPopulating && entList.getSelectedValue() != null) {
 					persistChanges();
 					setEntity(entList.getSelectedValue());
 				}
@@ -605,6 +606,7 @@ private JPanel buildFlagsPane() {
 	}
 	
 public void populate(GameInfo inf) {
+		isPopulating = true;
 		//init list of entities
 		copiedAttributes = null;
 		if (pasteButton != null) {
@@ -616,7 +618,6 @@ public void populate(GameInfo inf) {
 		}
 		filteredData = new ArrayList<>(dataCopy);
 		entList.setListData(filteredData.toArray(new EntityData[filteredData.size()]));
-		entList.setSelectedIndex(0);
 		exeData = inf;
 		
 		sizeList.removeAllItems();
@@ -649,6 +650,12 @@ public void populate(GameInfo inf) {
 			previewPane.setEntityResolution(entityRes);
 			previewPane.setScale(3.0);
 		}
+		
+		if (!filteredData.isEmpty()) {
+			entList.setSelectedIndex(0);
+			setEntity(filteredData.get(0));
+		}
+		isPopulating = false;
 	}
 	
 	private void setEntity(EntityData ent) {
