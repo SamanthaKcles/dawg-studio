@@ -18,7 +18,7 @@ I’m going to assume you’re familiar with Booster’s Lab. If not, that’s o
 - **Map Dragging**  
   - Holding the middle click and moving your mouse will drag the map.  
 - **Tab Keybinds**  
-  - The tile, entity, script, and mapdata tabs have been binded to F1, F2, F3, and F4.  
+  - The tile, entity, script, and mapdata tabs have been bound to F1, F2, F3, and F4.  
 - **Editor Configuration**  
   - A new window has been added under the actions tab. Here you can add/remove/edit TSC commands, END commands, songs, sound effects, equips, map bosses, and background types.  
 - **Unload Mod**  
