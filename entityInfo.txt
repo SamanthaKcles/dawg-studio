@@ -3,9 +3,7 @@
 //Contributors: Wistil (cannibalized CE's entity list)
 //		Noxid (most of entities 0-180 & some more)
 //		Carrotlord (rects for entities 180+)
-//		Bombchu Link (updated and refreshed framerects.)
-//		txin (Started and did most of the work on new accurate list: https://docs.google.com/spreadsheets/d/12iC9uRGNZ2MnrhpS4s_KvIRYHhC56mPXCnCcsDjxit0/ )
-//		Enlight (Contributed some changes to list above and brought it here)
+//     Bombchu Link (updated and refreshed framarects.)
 #0	 	 	Null 	0:0:0:0	<nothing> 	General:Tool CE:General ;
 #1	Weapn	energy	EXP	0:32:32:64	Weapon energy 	CE:General ;
 #2	Enemy	Behem	Behemoth 	0:0:64:48	Enemy - Behemoth 	CE:Egg1 Tileset:Eggs1 Enemy:Ground ;
@@ -81,7 +79,7 @@
 #72	Sprnk	 	Sprinkler 	448:96:480:128	Sprinkler 	General:Prop CE:Misc Tileset:Sym ;
 #73	Water	drop	Water drop 	0:0:0:0	Water drop 	CE:Misc ;
 #74	Jack	 	Jack 	128:0:160:32	Jack 	CE:Characters Character:Mimiga Tileset:Guest ;
-#75	Kanpa	fishn	Kanpachi(fishn) 	554:64:602:112	Kanpachi (fishing) 	CE:Characters Character:Mimiga Tileset:Guest ;
+#75	Kanpa	fishn	Kanpachi(fishn) 	544:64:590:112	Kanpachi (fishing) 	CE:Characters Character:Mimiga Tileset:Guest ;
 #76	Flowr	 	Flowers 	64:0:96:32	Flowers 	General:Prop CE:YamashitaFarm Tileset:Plant ;
 #77	Sanda	pavil	Yamashita 	0:32:96:96	Sandaime's pavilion 	CE:YamashitaFarm Character:Mimiga Tileset:Plant ;
 #78	Pot	 	Pot 	320:96:352:128	Pot 	General:Prop CE:Misc Tileset:Sym ;

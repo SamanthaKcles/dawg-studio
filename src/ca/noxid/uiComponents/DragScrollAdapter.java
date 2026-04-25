@@ -19,11 +19,15 @@ public class DragScrollAdapter extends MouseAdapter {
 
 	@Override
 	public void mouseDragged(MouseEvent eve) {
-		if (dragging) {
+		if (dragging || (eve.getModifiersEx() & MouseEvent.BUTTON2_DOWN_MASK) != 0) {
 			//http://java-swing-tips.blogspot.com/2008/06/mouse-drag-auto-scrolling.html
 			JComponent src = (JComponent) eve.getSource();
 			JViewport view = (JViewport) src.getParent();
 			Point converted = SwingUtilities.convertPoint(src, eve.getPoint(), view);
+			if (scrollPoint == null) {
+				scrollPoint = converted;
+				return;
+			}
 			int difX = scrollPoint.x - converted.x;
 			int difY = scrollPoint.y - converted.y;
 			Point vp = view.getViewPosition();
@@ -47,13 +51,22 @@ public class DragScrollAdapter extends MouseAdapter {
 	}
 
 	public void mousePressed(MouseEvent eve) {
-		if ((eve.getModifiersEx() & MouseEvent.SHIFT_DOWN_MASK) != 0) {
+		if ((eve.getModifiersEx() & MouseEvent.SHIFT_DOWN_MASK) != 0 || 
+				eve.getButton() == MouseEvent.BUTTON2) {
 			JComponent src = (JComponent) eve.getSource();
 			JViewport view = (JViewport) src.getParent();
 			scrollPoint = SwingUtilities.convertPoint(src, eve.getPoint(), view);
 			dragging = true;
 		} else {
 			dragging = false;
+		}
+	}
+
+	@Override
+	public void mouseReleased(MouseEvent eve) {
+		if (eve.getButton() == MouseEvent.BUTTON2) {
+			dragging = false;
+			scrollPoint = null;
 		}
 	}
 }

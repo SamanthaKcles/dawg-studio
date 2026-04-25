@@ -722,6 +722,9 @@ public class MapPane extends BgPanel {
 			if (parent.getActiveLayer() == EditorApp.PHYSICAL_LAYER) {
 				return;
 			}
+			if (eve.getButton() == MouseEvent.BUTTON2) {
+				return;
+			}
 			if (eve.isPopupTrigger()) {
 				//this needs to be copied to isrelease
 				popup_tilescript.setAction(new TilescriptAction(currentX,
@@ -736,6 +739,9 @@ public class MapPane extends BgPanel {
 			}
 			if ((eve.getModifiersEx() & MouseEvent.BUTTON3_DOWN_MASK) != 0) {
 				return; //do nothing if right mouse
+			}
+			if ((eve.getModifiersEx() & MouseEvent.BUTTON2_DOWN_MASK) != 0) {
+				return; //do nothing if middle mouse
 			}
 			if ((eve.getModifiersEx() & MouseEvent.SHIFT_DOWN_MASK) != 0) {
 				return; //do nothing if dragging
@@ -818,6 +824,9 @@ public class MapPane extends BgPanel {
 			}
 			if ((eve.getModifiersEx() & MouseEvent.BUTTON3_DOWN_MASK) != 0) {
 				return; //do nothing if right mouse button
+			}
+			if ((eve.getModifiersEx() & MouseEvent.BUTTON2_DOWN_MASK) != 0) {
+				return;
 			}
 			if (dragging) {
 				//setCursor(null);
@@ -1047,6 +1056,9 @@ public class MapPane extends BgPanel {
 				return;
 			}
 			if ((eve.getModifiersEx() & MouseEvent.BUTTON3_DOWN_MASK) != 0) {
+				return;
+			}
+			if ((eve.getModifiersEx() & MouseEvent.BUTTON2_DOWN_MASK) != 0) {
 				return;
 			}
 			if ((eve.getModifiersEx() & MouseEvent.SHIFT_DOWN_MASK) == 0) {

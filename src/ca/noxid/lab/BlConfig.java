@@ -11,7 +11,7 @@ import java.util.Scanner;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 public class BlConfig {
-	private static final String CONFIGNAME = "bl.ini";
+	private static final String CONFIGNAME = "dawg.ini";
 	private int lineResolution = 4;
 	private int entityResolution = 16;
 	private int tileSize = 16;
@@ -27,19 +27,19 @@ public class BlConfig {
 	private String imageExtension = ".pbm";
 
 	private static final String[] fluff = {
-			" - Line resolution",
-			" - Entity Resolution",
-			" - Tile Size",
-			" - Tileset Width",
-			" - Map min x",
-			" - Map min y",
-			" - Use ScriptSource files",
-			" - Identifies file as a tileset",
-			" - Identifies file as an NPC sheet",
-			" - Identifies file as a background",
-			" - Used for the alpha slider",
-			" - Character encoding",
-			" - Image extension",
+			"",
+			"",
+			"",
+			"",
+			"",
+			"",
+			"",
+			"",
+			"",
+			"",
+			"",
+			"",
+			"",
 	};
 
 	private File configFile;
@@ -175,7 +175,7 @@ public class BlConfig {
 	 * @return
 	 */
 	private File solveLegacyDirectory(File dataDir) {
-		File canonicalFile = new File(dataDir, ".boostlab/" + CONFIGNAME);
+		File canonicalFile = new File(dataDir, ".dawgstudio/" + CONFIGNAME);
 		if (canonicalFile.exists()) {
 			if (canonicalFile.isDirectory())
 				// you what

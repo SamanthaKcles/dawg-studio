@@ -20,7 +20,6 @@ public class CreateEntityDialog extends JDialog {
 	private JTextField rectLf = new FormattedUpdateTextField(nf);
 	private JTextField rectUf = new FormattedUpdateTextField(nf);
 	private JTextField rectRf = new FormattedUpdateTextField(nf);
-	private JTextField rectDf = new FormattedUpdateTextField(nf);
 	private JTextPane descf = new JTextPane();
 	private JList<String> categories = new JList<>();
 	private Vector<String> listContent = new Vector<>();
@@ -119,7 +118,7 @@ public class CreateEntityDialog extends JDialog {
 					Integer.parseInt(rectLf.getText()),
 					Integer.parseInt(rectUf.getText()),
 					Integer.parseInt(rectRf.getText()),
-					Integer.parseInt(rectDf.getText())
+					0
 				));
 				ent.setDesc(descf.getText());
 				for(String s : listContent) {
@@ -167,19 +166,14 @@ public class CreateEntityDialog extends JDialog {
 		retVal.add(new JPanel());
 		retVal.add(this.rectUf);
 		rectUf.setText("48");
-		//hitboxU.addFocusListener(this);
 		retVal.add(new JPanel());
 		retVal.add(this.rectLf);
 		rectLf.setText("48");
-		//hitboxL.addFocusListener(this);
 		retVal.add(new JPanel());
 		retVal.add(this.rectRf);
 		rectRf.setText("64");
-		//hitboxR.addFocusListener(this);
 		retVal.add(new JPanel());
-		retVal.add(this.rectDf);
-		rectDf.setText("64");
-		//hitboxD.addFocusListener(this);
+		retVal.add(new JPanel());
 		return retVal;
 	}
 }

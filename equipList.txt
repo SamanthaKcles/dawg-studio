@@ -7,10 +7,9 @@ Booster v2.0
 Mimiga Mask
 Whimsical Star
 Nikumaru Counter
-10th Equip
-11th Equip
-12th Equip
-13th Equip
-14th Equip
-15th Equip
-16th Equip
+unused
+unused
+unused
+unused
+unused
+unused

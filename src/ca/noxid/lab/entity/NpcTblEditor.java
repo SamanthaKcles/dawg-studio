@@ -6,6 +6,8 @@ import ca.noxid.lab.gameinfo.GameInfo;
 import ca.noxid.lab.rsrc.ResourceManager;
 
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import java.awt.*;
@@ -13,6 +15,8 @@ import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,9 +26,11 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 	private static final long serialVersionUID = -8397275955244640295L;
 	private JList<EntityData> entList;
 	private ArrayList<EntityData> dataCopy;
+	private ArrayList<EntityData> filteredData;
 	private EntityData currentEnt = null;
 	private NpcTblClipboardData copiedAttributes = null;
 	private GameInfo exeData;
+	private JTextField searchField;
 	//button for close, save
 	
 	//info box
@@ -44,7 +50,7 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 	private JTextField spriteOffX = new JTextField();
 	private JTextField spriteOffY = new JTextField();
 	private JTextField widthField = new JTextField();
-	private JTextField heightField = new JTextField();
+	private JCheckBox faceRightCheckbox = new JCheckBox("Flip sprite");
 	
 	//sprite rect
 	private JTextField spriteLeft = new JTextField();
@@ -59,17 +65,19 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 	private JTextField hpField = new JTextField(6);
 	private JTextField xpField = new JTextField(6);
 	private JTextField dmgField = new JTextField(6);
-	private JComboBox<String> sizeList = new JComboBox<>(GameInfo.NpcSizeNames);
-	private JComboBox<String> hurtList = new JComboBox<>(GameInfo.sfxNames);
-	private JComboBox<String> deathList = new JComboBox<>(GameInfo.sfxNames);
-	private JComboBox<String> tilesetList = new JComboBox<>(GameInfo.NpcSurfaceNames);
+	private JComboBox<String> sizeList = new JComboBox<>();
+	private JComboBox<String> hurtList = new JComboBox<>();
+	private JComboBox<String> deathList = new JComboBox<>();
+	private JComboBox<String> tilesetList = new JComboBox<>();
 	private JButton pasteButton;
 	
-	//that box panel
-	//private JPanel previewPane = new JPanel();
+	private NpcPreviewPane previewPane;
+	private JComboBox<String> npcSheetSelector;
+	private EditorApp parentApp;
 
 	public NpcTblEditor(Frame aFrame) {
 		super(aFrame);
+		this.parentApp = (EditorApp) aFrame;
 		if (EditorApp.blazed)
 			this.setCursor(ResourceManager.cursor);
 		this.setDefaultCloseOperation(HIDE_ON_CLOSE);
@@ -79,16 +87,51 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 	}
 	
 	private void addComponents() {
-		GridBagConstraints c;
-		entList = new JList<>();
-		//entList.setMaximumSize(new Dimension(100, 3333));
 		JPanel mainPanel = new JPanel();
 		mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.X_AXIS));
-		//c.fill = GridBagConstraints.BOTH;
-		//c.weightx = 0.3;
-		//c.weighty = 1.0;
+		
+		JPanel leftPanel = new JPanel(new GridBagLayout());
+		GridBagConstraints lc = new GridBagConstraints();
+		lc.gridx = 0;
+		lc.gridy = 0;
+		lc.fill = GridBagConstraints.HORIZONTAL;
+		lc.weightx = 1.0;
+		
+		searchField = new JTextField();
+		searchField.setForeground(Color.GRAY);
+		searchField.setText("Search");
+		searchField.addFocusListener(new FocusAdapter() {
+			@Override
+			public void focusGained(FocusEvent e) {
+				if (searchField.getText().equals("Search")) {
+					searchField.setText("");
+					searchField.setForeground(Color.WHITE);
+				}
+			}
+			@Override
+			public void focusLost(FocusEvent e) {
+				if (searchField.getText().isEmpty()) {
+					searchField.setForeground(Color.GRAY);
+					searchField.setText("Search");
+				}
+			}
+		});
+		searchField.getDocument().addDocumentListener(new DocumentListener() {
+			@Override
+			public void insertUpdate(DocumentEvent e) { filterList(); }
+			@Override
+			public void removeUpdate(DocumentEvent e) { filterList(); }
+			@Override
+			public void changedUpdate(DocumentEvent e) { filterList(); }
+		});
+		lc.insets = new Insets(2, 2, 2, 2);
+		leftPanel.add(searchField, lc);
+		
+		lc.gridy++;
+		lc.fill = GridBagConstraints.BOTH;
+		lc.weighty = 1.0;
+		entList = new JList<>();
 		entList.addListSelectionListener(new ListSelectionListener() {
-
 			@Override
 			public void valueChanged(ListSelectionEvent eve) {
 				if (entList.getSelectedValue() != null) {
@@ -96,7 +139,6 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 					setEntity(entList.getSelectedValue());
 				}
 			}
-			
 		});
 		entList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
 		entList.getInputMap(JComponent.WHEN_FOCUSED).put(
@@ -111,18 +153,46 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 		JScrollPane jsp = new JScrollPane(entList);
 		jsp.setMinimumSize(new Dimension(130, 120));
 		jsp.setPreferredSize(new Dimension(130, 120));
-		jsp.setMaximumSize(new Dimension(130, 9999));
 		jsp.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_ALWAYS);
-		mainPanel.add(jsp);
-		//c.gridx++;
-		//c.weightx = 0.5;
-		//c.gridwidth = 5;
+		leftPanel.add(jsp, lc);
+
+		lc.gridy++;
+		lc.fill = GridBagConstraints.HORIZONTAL;
+		lc.weighty = 0;
+		JButton addButton = new JButton(new AbstractAction() {
+			private static final long serialVersionUID = 320754668181434348L;
+			@Override
+			public void actionPerformed(ActionEvent eve) {
+				CreateEntityDialog d = new CreateEntityDialog(parentApp);
+				if (d.ent != null) {
+					d.ent.setID(dataCopy.size());
+					dataCopy.add(d.ent);
+					filterList();
+					entList.setSelectedValue(d.ent, true);
+				}
+			}
+		});
+		addButton.setText("Add New");
+		leftPanel.add(addButton, lc);
+		
+		lc.gridy++;
+		JButton deleteButton = new JButton(new AbstractAction() {
+			private static final long serialVersionUID = 320754668181434348L;
+			@Override
+			public void actionPerformed(ActionEvent eve) {
+				deleteSelectedEntities();
+			}
+		});
+		deleteButton.setText("Delete Selected");
+		leftPanel.add(deleteButton, lc);
+		
+		mainPanel.add(leftPanel);
+		
 		JPanel rightPanel = new JPanel(new GridBagLayout());
-		//rightPanel.setBorder(BorderFactory.createTitledBorder("This is a title"));
 		mainPanel.add(rightPanel);
 		
 		//set up main panel
-		c = new GridBagConstraints();
+		GridBagConstraints c = new GridBagConstraints();
 		c.gridx = 0;
 		c.gridy = 0;
 		c.fill = GridBagConstraints.BOTH;
@@ -130,74 +200,35 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 		c.weighty = 0.5;
 		JPanel pane;
 		
-		pane = buildInfoPane();
-		c.gridwidth = GridBagConstraints.REMAINDER;
-		rightPanel.add(pane, c);
-		
-		pane = buildHitboxPane();
-		c.gridy++;
-		c.gridwidth = 2;
-		rightPanel.add(pane, c);
-		
-		pane = buildDisplayPane();
-		c.gridx += 2;
-		rightPanel.add(pane, c);
-		
-		pane = buildSpritePane();
-		c.gridx += 2;
-		rightPanel.add(pane, c);
-		
-		pane = buildStatsPane();
-		c.gridy++;
-		c.gridx = 0;
-		c.gridwidth = GridBagConstraints.REMAINDER;
-		rightPanel.add(pane, c);
-		
-		/*
-		pane = previewPane;
-		pane.setBorder(new LineBorder(Color.red));
-		//c.gridy++;
-		c.gridx += 3;
+		pane = buildMainEditorPane();
 		c.gridwidth = 1;
+		c.gridheight = 1;
 		rightPanel.add(pane, c);
-		*/
 		
-		pane = buildFlagsPane();
-		c.gridy++;
+		c.gridx = 1;
+		c.gridheight = 1;
+		pane = buildPreviewAndSpritePane();
+		rightPanel.add(pane, c);
+		
 		c.gridx = 0;
-		c.gridwidth = GridBagConstraints.REMAINDER;
+		c.gridy = 3;
+		c.gridwidth = 2;
+		c.insets = new Insets(2, 2, 2, 2);
+		pane = buildFlagsPane();
 		rightPanel.add(pane, c);		
 		
-		//TODO add buttons for save, close, cancel
-		//save&close, cancel? probs.
 		c.gridy++;
-		c.gridx = 2;
-		c.fill = 0;
-		c.gridwidth = 1;
+		c.gridx = 0;
+		c.gridwidth = 2;
+		c.fill = GridBagConstraints.NONE;
 		c.anchor = GridBagConstraints.EAST;
-		JButton button;
-		button = new JButton(new AbstractAction() {
-			private static final long serialVersionUID = 8192459460809148679L;
-
-			@Override
-			public void actionPerformed(ActionEvent eve) {
-				int result = JOptionPane.showConfirmDialog(NpcTblEditor.this,
-						"Are you sure you want to save?", "Warning!",
-						JOptionPane.YES_NO_OPTION);
-				if (result != JOptionPane.YES_OPTION) return;
-				persistChanges();
-				exeData.setEntities(dataCopy); 
-				exeData.saveNpcTbl();
-				setVisible(false);
-			}
-		});
-		button.setText(Messages.getString("NpcTblEditor.50")); //$NON-NLS-1$
-		rightPanel.add(button);
+		c.weightx = 0;
+		c.insets = new Insets(2, 2, 2, 2);
+		JPanel buttonPanel = new JPanel();
+		buttonPanel.setLayout(new FlowLayout(FlowLayout.RIGHT, 2, 0));
 		
-		c.gridx++;
-		button = new JButton(new AbstractAction() {
+		JButton copyButton = new JButton(new AbstractAction() {
 			private static final long serialVersionUID = 1371948856887331870L;
-
 			@Override
 			public void actionPerformed(ActionEvent eve) {
 				persistChanges();
@@ -212,13 +243,11 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 				}
 			}
 		});
-		button.setText("Copy");
-		rightPanel.add(button);
-
-		c.gridx++;
+		copyButton.setText("Copy");
+		buttonPanel.add(copyButton);
+		
 		pasteButton = new JButton(new AbstractAction() {
 			private static final long serialVersionUID = -4576863892371145178L;
-
 			@Override
 			public void actionPerformed(ActionEvent eve) {
 				if (currentEnt == null) return;
@@ -238,12 +267,27 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 		});
 		pasteButton.setText("Paste");
 		pasteButton.setEnabled(false);
-		rightPanel.add(pasteButton);
-
-		c.gridx++;
-		button = new JButton(new AbstractAction() {
+		buttonPanel.add(pasteButton);
+		
+		JButton saveButton = new JButton(new AbstractAction() {
+			private static final long serialVersionUID = 8192459460809148679L;
+			@Override
+			public void actionPerformed(ActionEvent eve) {
+				int result = JOptionPane.showConfirmDialog(NpcTblEditor.this,
+						"Are you sure you want to save?", "Warning!",
+						JOptionPane.YES_NO_OPTION);
+				if (result != JOptionPane.YES_OPTION) return;
+				persistChanges();
+				exeData.setEntities(dataCopy); 
+				exeData.saveNpcTbl();
+				setVisible(false);
+			}
+		});
+		saveButton.setText(Messages.getString("NpcTblEditor.50")); //$NON-NLS-1$
+		buttonPanel.add(saveButton);
+		
+		JButton cancelButton = new JButton(new AbstractAction() {
 			private static final long serialVersionUID = 320754668181434348L;
-			
 			@Override
 			public void actionPerformed(ActionEvent eve) {
 				int result = JOptionPane.showConfirmDialog(NpcTblEditor.this,
@@ -253,42 +297,255 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 				setVisible(false);
 			}
 		});
-		button.setText(Messages.getString("NpcTblEditor.51")); //$NON-NLS-1$
-		rightPanel.add(button);
+		cancelButton.setText(Messages.getString("NpcTblEditor.51")); //$NON-NLS-1$
+		buttonPanel.add(cancelButton);
 		
-		c.gridx++;
-		button = new JButton(new AbstractAction() {
-			private static final long serialVersionUID = 320754668181434348L;
-			
-			@Override
-			public void actionPerformed(ActionEvent eve) {
-				deleteSelectedEntities();
-			}
-		});
-		button.setText("Delete Selected");
-		rightPanel.add(button);
-		
-		c.gridx++;
-		button = new JButton(new AbstractAction() {
-			private static final long serialVersionUID = 320754668181434348L;
-			
-			@Override
-			public void actionPerformed(ActionEvent eve) {
-				CreateEntityDialog d = new CreateEntityDialog((Frame) NpcTblEditor.this.getParent());
-				if (d.ent != null) {
-					d.ent.setID(dataCopy.size());
-					dataCopy.add(d.ent);
-					entList.setListData(dataCopy.toArray(new EntityData[dataCopy.size()]));
-					entList.setSelectedValue(d.ent, true);
-				}
-			}
-		});
-		button.setText("Add New");
-		rightPanel.add(button);
+		rightPanel.add(buttonPanel, c);
 		
 		this.setContentPane(mainPanel);
 		this.pack();
 		this.setMinimumSize(this.getSize());
+	}
+	
+	
+private JPanel buildMainEditorPane() {
+		JPanel retVal = new JPanel();
+		retVal.setLayout(new GridBagLayout());
+		GridBagConstraints c = new GridBagConstraints();
+		c.gridx = 0;
+		c.gridy = 0;
+		c.anchor = GridBagConstraints.WEST;
+		c.fill = GridBagConstraints.HORIZONTAL;
+		c.insets = new Insets(2, 2, 2, 2);
+		
+		retVal.add(new JLabel("Name"), c);
+		c.gridx = 1;
+		c.gridwidth = 2;
+		c.weightx = 1.0;
+		retVal.add(nameLabel, c);
+		
+		c.gridx = 0;
+		c.gridy++;
+		c.gridwidth = 1;
+		c.weightx = 0;
+		retVal.add(new JLabel("Short Name"), c);
+		c.gridx = 1;
+		c.weightx = 0.5;
+		short1Label.setPreferredSize(new Dimension(70, short1Label.getPreferredSize().height));
+		retVal.add(short1Label, c);
+		c.gridx = 2;
+		short2Label.setPreferredSize(new Dimension(70, short2Label.getPreferredSize().height));
+		retVal.add(short2Label, c);
+		
+		c.gridx = 0;
+		c.gridy++;
+		c.gridwidth = 1;
+		c.weightx = 0;
+		c.anchor = GridBagConstraints.NORTHWEST;
+		retVal.add(new JLabel("Description"), c);
+		c.gridx = 1;
+		c.gridwidth = 2;
+		c.weightx = 1.0;
+		c.fill = GridBagConstraints.BOTH;
+		JScrollPane descScroll = new JScrollPane(descArea);
+		descScroll.setPreferredSize(new Dimension(150, 60));
+		retVal.add(descScroll, c);
+		c.fill = GridBagConstraints.HORIZONTAL;
+		c.anchor = GridBagConstraints.WEST;
+		
+		c.gridx = 0;
+		c.gridy++;
+		c.gridwidth = 1;
+		c.weightx = 0;
+		retVal.add(new JLabel("Tileset"), c);
+		c.gridx = 1;
+		c.gridwidth = 2;
+		c.weightx = 1.0;
+		retVal.add(tilesetList, c);
+		
+		c.gridx = 0;
+		c.gridy++;
+		c.gridwidth = 1;
+		c.weightx = 0;
+		retVal.add(new JLabel("Hurt SFX"), c);
+		c.gridx = 1;
+		c.gridwidth = 2;
+		c.weightx = 1.0;
+		retVal.add(hurtList, c);
+		
+		c.gridx = 0;
+		c.gridy++;
+		c.gridwidth = 1;
+		c.weightx = 0;
+		retVal.add(new JLabel("Death SFX"), c);
+		c.gridx = 1;
+		c.gridwidth = 2;
+		c.weightx = 1.0;
+		retVal.add(deathList, c);
+		
+		c.gridx = 0;
+		c.gridy++;
+		c.gridwidth = 1;
+		c.weightx = 0;
+		retVal.add(new JLabel("Health"), c);
+		c.gridx = 1;
+		c.weightx = 0.33;
+		hpField.setPreferredSize(new Dimension(50, hpField.getPreferredSize().height));
+		retVal.add(hpField, c);
+		c.gridx = 0;
+		c.gridy++;
+		c.weightx = 0;
+		retVal.add(new JLabel("Experience"), c);
+		c.gridx = 1;
+		c.weightx = 0.33;
+		xpField.setPreferredSize(new Dimension(50, xpField.getPreferredSize().height));
+		retVal.add(xpField, c);
+		c.gridx = 0;
+		c.gridy++;
+		c.weightx = 0;
+		retVal.add(new JLabel("Damage"), c);
+		c.gridx = 1;
+		c.weightx = 0.33;
+		dmgField.setPreferredSize(new Dimension(50, dmgField.getPreferredSize().height));
+		retVal.add(dmgField, c);
+		
+		c.gridx = 0;
+		c.gridy++;
+		c.gridwidth = 3;
+		c.weightx = 1.0;
+		c.fill = GridBagConstraints.BOTH;
+		JPanel hitboxPane = new JPanel();
+		hitboxPane.setBorder(BorderFactory.createTitledBorder("Hitbox"));
+		hitboxPane.setLayout(new GridLayout(3, 3));
+		hitboxPane.add(new JPanel());
+		hitboxU.addActionListener(e -> updatePreview());
+		hitboxPane.add(hitboxU);
+		hitboxPane.add(new JPanel());
+		hitboxL.addActionListener(e -> updatePreview());
+		hitboxPane.add(hitboxL);
+		JLabel hitboxCenter = new JLabel("Npc Center", SwingConstants.CENTER);
+		hitboxPane.add(hitboxCenter);
+		hitboxR.addActionListener(e -> updatePreview());
+		hitboxPane.add(hitboxR);
+		hitboxPane.add(new JPanel());
+		hitboxD.addActionListener(e -> updatePreview());
+		hitboxPane.add(hitboxD);
+		hitboxPane.add(new JPanel());
+		retVal.add(hitboxPane, c);
+		
+		c.gridy++;
+		JPanel displayPane = new JPanel();
+		displayPane.setBorder(BorderFactory.createTitledBorder("Display"));
+		displayPane.setLayout(new GridLayout(3, 3));
+		displayPane.add(new JPanel());
+		spriteOffY.addActionListener(e -> updatePreview());
+		displayPane.add(spriteOffY);
+		displayPane.add(new JPanel());
+		spriteOffX.addActionListener(e -> updatePreview());
+		displayPane.add(spriteOffX);
+		JLabel displayCenter = new JLabel("Hi", SwingConstants.CENTER);
+		displayPane.add(displayCenter);
+		widthField.addActionListener(e -> updatePreview());
+		displayPane.add(widthField);
+		displayPane.add(new JPanel());
+		faceRightCheckbox.addActionListener(e -> updatePreview());
+		displayPane.add(faceRightCheckbox);
+		displayPane.add(new JPanel());
+		retVal.add(displayPane, c);
+		
+		return retVal;
+	}
+	
+	private JPanel buildPreviewAndSpritePane() {
+		JPanel retVal = new JPanel();
+		retVal.setLayout(new GridBagLayout());
+		GridBagConstraints c = new GridBagConstraints();
+		c.gridx = 0;
+		c.gridy = 0;
+		c.fill = GridBagConstraints.BOTH;
+		c.weightx = 1.0;
+		c.weighty = 1.0;
+		
+		JPanel previewContainer = new JPanel();
+		previewContainer.setBorder(BorderFactory.createTitledBorder("Preview"));
+		previewContainer.setLayout(new BorderLayout());
+		previewPane = new NpcPreviewPane(parentApp.getImageManager());
+		previewPane.setScale(3.0);
+		previewPane.setPreferredSize(new Dimension(200, 200));
+		previewContainer.add(previewPane, BorderLayout.CENTER);
+		retVal.add(previewContainer, c);
+		
+		c.gridy++;
+		c.weighty = 0;
+		c.fill = GridBagConstraints.HORIZONTAL;
+		JPanel spriteSelectPanel = new JPanel(new GridBagLayout());
+		GridBagConstraints sc = new GridBagConstraints();
+		sc.gridx = 0;
+		sc.gridy = 0;
+		sc.anchor = GridBagConstraints.WEST;
+		sc.insets = new Insets(2, 2, 2, 2);
+		spriteSelectPanel.add(new JLabel("Sprite"), sc);
+		sc.gridx = 1;
+		sc.weightx = 1.0;
+		sc.fill = GridBagConstraints.HORIZONTAL;
+		npcSheetSelector = new JComboBox<>();
+		npcSheetSelector.addActionListener(e -> loadNpcSheet());
+		spriteSelectPanel.add(npcSheetSelector, sc);
+		retVal.add(spriteSelectPanel, c);
+		
+		c.gridy++;
+		c.fill = GridBagConstraints.BOTH;
+		JPanel spriteLocPane = new JPanel();
+		spriteLocPane.setBorder(BorderFactory.createTitledBorder("Sprite Location"));
+		spriteLocPane.setLayout(new GridBagLayout());
+		GridBagConstraints slc = new GridBagConstraints();
+		slc.fill = GridBagConstraints.BOTH;
+		slc.weightx = 1.0;
+		slc.weighty = 1.0;
+		slc.insets = new Insets(2, 2, 2, 2);
+		
+		slc.gridx = 0;
+		slc.gridy = 0;
+		spriteLocPane.add(new JPanel(), slc);
+		slc.gridx = 1;
+		JPanel topPanel = new JPanel(new BorderLayout(1, 0));
+		topPanel.add(new JLabel("T"), BorderLayout.WEST);
+		spriteTop.addActionListener(e -> updatePreview());
+		topPanel.add(spriteTop, BorderLayout.CENTER);
+		spriteLocPane.add(topPanel, slc);
+		slc.gridx = 2;
+		spriteLocPane.add(new JPanel(), slc);
+		
+		slc.gridx = 0;
+		slc.gridy = 1;
+		JPanel leftPanel = new JPanel(new BorderLayout(1, 0));
+		leftPanel.add(new JLabel("L"), BorderLayout.WEST);
+		spriteLeft.addActionListener(e -> updatePreview());
+		leftPanel.add(spriteLeft, BorderLayout.CENTER);
+		spriteLocPane.add(leftPanel, slc);
+		slc.gridx = 1;
+		spriteLocPane.add(new JPanel(), slc);
+		slc.gridx = 2;
+		JPanel rightPanel = new JPanel(new BorderLayout(1, 0));
+		spriteRight.addActionListener(e -> updatePreview());
+		rightPanel.add(spriteRight, BorderLayout.CENTER);
+		rightPanel.add(new JLabel("R"), BorderLayout.EAST);
+		spriteLocPane.add(rightPanel, slc);
+		
+		slc.gridx = 0;
+		slc.gridy = 2;
+		spriteLocPane.add(new JPanel(), slc);
+		slc.gridx = 1;
+		JPanel bottomPanel = new JPanel(new BorderLayout(1, 0));
+		spriteBottom.addActionListener(e -> updatePreview());
+		bottomPanel.add(spriteBottom, BorderLayout.CENTER);
+		bottomPanel.add(new JLabel("B"), BorderLayout.EAST);
+		spriteLocPane.add(bottomPanel, slc);
+		slc.gridx = 2;
+		spriteLocPane.add(new JPanel(), slc);
+		
+		retVal.add(spriteLocPane, c);
+		return retVal;
 	}
 	
 	private JPanel buildInfoPane() {
@@ -326,53 +583,7 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 		return retVal;
 	}
 	
-	private JPanel buildHitboxPane() {
-		JPanel retVal = new JPanel();
-		retVal.setBorder(BorderFactory.createTitledBorder(Messages.getString("NpcTblEditor.58"))); //$NON-NLS-1$
-		retVal.setLayout(new GridLayout(3, 3));
-		retVal.add(new JPanel());
-		retVal.add(this.hitboxU);
-		retVal.add(new JPanel());
-		retVal.add(this.hitboxL);
-		retVal.add(new JPanel());
-		retVal.add(this.hitboxR);
-		retVal.add(new JPanel());
-		retVal.add(this.hitboxD);
-		return retVal;
-	}
-	
-	private JPanel buildDisplayPane() {
-		JPanel retVal = new JPanel();
-		retVal.setBorder(BorderFactory.createTitledBorder(Messages.getString("NpcTblEditor.59"))); //$NON-NLS-1$
-
-		retVal.setLayout(new GridLayout(2, 0, 4, 2));
-		retVal.add(new JLabel(Messages.getString("NpcTblEditor.60"))); //$NON-NLS-1$
-		retVal.add(this.spriteOffY);
-		retVal.add(new JLabel(Messages.getString("NpcTblEditor.61"))); //$NON-NLS-1$
-		retVal.add(this.spriteOffX);
-		retVal.add(new JLabel(Messages.getString("NpcTblEditor.62"))); //$NON-NLS-1$
-		retVal.add(this.widthField);
-		retVal.add(new JLabel(Messages.getString("NpcTblEditor.63"))); //$NON-NLS-1$
-		retVal.add(this.heightField);
-		return retVal;
-	}
-	
-	private JPanel buildSpritePane() {
-		JPanel retVal = new JPanel();
-		retVal.setBorder(BorderFactory.createTitledBorder("Sprite Location"));
-		retVal.setLayout(new GridLayout(4, 2, 4, 2));
-		retVal.add(new JLabel("Left"));
-		retVal.add(this.spriteLeft);
-		retVal.add(new JLabel("Top"));
-		retVal.add(this.spriteTop);
-		retVal.add(new JLabel("Right"));
-		retVal.add(this.spriteRight);
-		retVal.add(new JLabel("Bottom"));
-		retVal.add(this.spriteBottom);
-		return retVal;
-	}
-	
-	private JPanel buildFlagsPane() {
+private JPanel buildFlagsPane() {
 		JPanel retVal = new JPanel();
 		retVal.setBorder(BorderFactory.createTitledBorder(Messages.getString("NpcTblEditor.64"))); //$NON-NLS-1$
 		retVal.setLayout(new GridBagLayout());
@@ -393,45 +604,7 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 		return retVal;
 	}
 	
-	private JPanel buildStatsPane() {
-		JPanel retVal = new JPanel();
-		retVal.setBorder(BorderFactory.createTitledBorder(Messages.getString("NpcTblEditor.65"))); //$NON-NLS-1$
-		retVal.setLayout(new GridBagLayout());
-		GridBagConstraints c = new GridBagConstraints();
-		c.gridx = 0;
-		c.gridy = 0;
-		c.anchor = GridBagConstraints.WEST;
-		c.insets = new Insets(2, 1, 2, 1);
-		ArrayList<Component> comps = new ArrayList<>();
-		comps.add(new JLabel(Messages.getString("NpcTblEditor.66"))); //$NON-NLS-1$
-		comps.add(this.hpField);
-		comps.add(new JLabel(Messages.getString("NpcTblEditor.67"))); //$NON-NLS-1$
-		comps.add(this.tilesetList);
-		comps.add(new JLabel(Messages.getString("NpcTblEditor.68"))); //$NON-NLS-1$
-		comps.add(this.xpField);
-		comps.add(new JLabel(Messages.getString("NpcTblEditor.69"))); //$NON-NLS-1$
-		comps.add(this.sizeList);
-		comps.add(new JLabel(Messages.getString("NpcTblEditor.70"))); //$NON-NLS-1$
-		comps.add(this.dmgField);
-		comps.add(new JLabel(Messages.getString("NpcTblEditor.71"))); //$NON-NLS-1$
-		comps.add(this.hurtList);
-		comps.add(new JPanel());
-		comps.add(new JPanel());
-		comps.add(new JLabel(Messages.getString("NpcTblEditor.72"))); //$NON-NLS-1$
-		comps.add(this.deathList);
-		
-		for (Component com : comps) {
-			retVal.add(com, c);
-			c.gridx++;
-			if (c.gridx > 3) {
-				c.gridx = 0;
-				c.gridy++;
-			}
-		}
-		return retVal;
-	}
-	
-	public void populate(GameInfo inf) {
+public void populate(GameInfo inf) {
 		//init list of entities
 		copiedAttributes = null;
 		if (pasteButton != null) {
@@ -441,9 +614,41 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 		for (int i = 0; i < inf.getAllEntities().length; i++) {
 			dataCopy.add(new EntityData(inf.getAllEntities()[i]));
 		}
-		entList.setListData(dataCopy.toArray(new EntityData[dataCopy.size()]));
+		filteredData = new ArrayList<>(dataCopy);
+		entList.setListData(filteredData.toArray(new EntityData[filteredData.size()]));
 		entList.setSelectedIndex(0);
 		exeData = inf;
+		
+		sizeList.removeAllItems();
+		for (String s : GameInfo.NpcSizeNames) {
+			sizeList.addItem(s);
+		}
+		hurtList.removeAllItems();
+		for (String s : GameInfo.sfxNames) {
+			hurtList.addItem(s);
+		}
+		deathList.removeAllItems();
+		for (String s : GameInfo.sfxNames) {
+			deathList.addItem(s);
+		}
+		tilesetList.removeAllItems();
+		for (String s : GameInfo.NpcSurfaceNames) {
+			tilesetList.addItem(s);
+		}
+		
+		if (npcSheetSelector != null) {
+			npcSheetSelector.removeAllItems();
+			String[] sheets = inf.getNpcSheets();
+			for (String sheet : sheets) {
+				npcSheetSelector.addItem(sheet);
+			}
+		}
+		
+		if (previewPane != null) {
+			int entityRes = inf.getConfig().getEntityRes();
+			previewPane.setEntityResolution(entityRes);
+			previewPane.setScale(3.0);
+		}
 	}
 	
 	private void setEntity(EntityData ent) {
@@ -470,7 +675,7 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 		spriteOffX.setText(String.valueOf(dispRect.x));
 		spriteOffY.setText(String.valueOf(dispRect.y));
 		widthField.setText(String.valueOf(dispRect.width));
-		heightField.setText(String.valueOf(dispRect.height));
+		faceRightCheckbox.setSelected(false);
 		
 		Rectangle frameRect = ent.getFramerect();
 		spriteLeft.setText(String.valueOf(frameRect.x / 2));
@@ -492,10 +697,61 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 		hpField.setText(String.valueOf(ent.getHP()));
 		xpField.setText(String.valueOf(ent.getXP()));
 		dmgField.setText(String.valueOf(ent.getDmg()));
-		sizeList.setSelectedIndex(ent.getSize());
-		hurtList.setSelectedIndex(ent.getHurt());
-		deathList.setSelectedIndex(ent.getDeath());
-		tilesetList.setSelectedIndex(ent.getTileset());
+		if (ent.getSize() >= 0 && ent.getSize() < sizeList.getItemCount()) {
+			sizeList.setSelectedIndex(ent.getSize());
+		}
+		if (ent.getHurt() >= 0 && ent.getHurt() < hurtList.getItemCount()) {
+			hurtList.setSelectedIndex(ent.getHurt());
+		}
+		if (ent.getDeath() >= 0 && ent.getDeath() < deathList.getItemCount()) {
+			deathList.setSelectedIndex(ent.getDeath());
+		}
+		if (ent.getTileset() >= 0 && ent.getTileset() < tilesetList.getItemCount()) {
+			tilesetList.setSelectedIndex(ent.getTileset());
+		}
+		
+		updatePreview();
+	}
+	
+	private void updatePreview() {
+		if (currentEnt == null || previewPane == null) return;
+		try {
+			Rectangle hr = new Rectangle(
+				Integer.parseInt(hitboxL.getText()),
+				Integer.parseInt(hitboxU.getText()),
+				Integer.parseInt(hitboxR.getText()),
+				Integer.parseInt(hitboxD.getText())
+			);
+			Rectangle dr = new Rectangle(
+				Integer.parseInt(spriteOffX.getText()),
+				Integer.parseInt(spriteOffY.getText()),
+				Integer.parseInt(widthField.getText()),
+				0
+			);
+			Rectangle fr = new Rectangle(
+				Integer.parseInt(spriteLeft.getText()),
+				Integer.parseInt(spriteTop.getText()),
+				Integer.parseInt(spriteRight.getText()),
+				Integer.parseInt(spriteBottom.getText())
+			);
+			currentEnt.setHit(hr);
+			currentEnt.setDisplay(dr);
+			currentEnt.setFramerect(fr);
+			previewPane.setEntity(currentEnt);
+			previewPane.setFaceRight(faceRightCheckbox.isSelected());
+		} catch (NumberFormatException ignored) {}
+	}
+	
+	private void loadNpcSheet() {
+		if (exeData == null || npcSheetSelector == null) return;
+		String sheetName = (String) npcSheetSelector.getSelectedItem();
+		if (sheetName == null) return;
+		ResourceManager iMan = parentApp.getImageManager();
+		java.io.File npcFile = new java.io.File(exeData.getDataDirectory() + "/Npc/" + sheetName + exeData.getImgExtension());
+		if (npcFile.exists()) {
+			iMan.addImage(npcFile, 1);
+			previewPane.setNpcSheet(iMan.getImg(npcFile));
+		}
 	}
 	
 	@Override
@@ -520,7 +776,27 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 			i++;
 		}
 		currentEnt = null;
-		entList.setListData(dataCopy.toArray(new EntityData[dataCopy.size()]));
+		filterList();
+	}
+
+	private void filterList() {
+		if (dataCopy == null) return;
+		String query = searchField.getText();
+		if (query.equals("Search") || query.isEmpty()) {
+			filteredData = new ArrayList<>(dataCopy);
+		} else {
+			filteredData = new ArrayList<>();
+			String lowerQuery = query.toLowerCase();
+			for (EntityData ent : dataCopy) {
+				if (String.valueOf(ent.getID()).contains(lowerQuery) ||
+					ent.getName().toLowerCase().contains(lowerQuery) ||
+					ent.getShort1().toLowerCase().contains(lowerQuery) ||
+					ent.getShort2().toLowerCase().contains(lowerQuery)) {
+					filteredData.add(ent);
+				}
+			}
+		}
+		entList.setListData(filteredData.toArray(new EntityData[filteredData.size()]));
 	}
 
 	private void persistChanges() {
@@ -542,7 +818,7 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 		currentEnt.setDisplay(dr);
 		dr.width = Integer.parseInt(widthField.getText());
 		currentEnt.setDisplay(dr);
-		dr.height = Integer.parseInt(heightField.getText());
+		dr.height = 0;
 		currentEnt.setDisplay(dr);
 		Rectangle fr = currentEnt.getFramerect();
 		fr.x = Integer.parseInt(spriteLeft.getText()) * 2;

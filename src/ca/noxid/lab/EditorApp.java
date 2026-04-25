@@ -3,7 +3,6 @@ package ca.noxid.lab;
 import ca.noxid.lab.entity.EntityData;
 import ca.noxid.lab.entity.EntityPane;
 import ca.noxid.lab.entity.NpcTblEditor;
-import ca.noxid.lab.entity.SpritesheetOptimizer;
 import ca.noxid.lab.gameinfo.*;
 import ca.noxid.lab.mapdata.MapInfo;
 import ca.noxid.lab.mapdata.Mapdata;
@@ -27,6 +26,7 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.plaf.ColorUIResource;
 import javax.swing.plaf.metal.DefaultMetalTheme;
 import javax.swing.plaf.metal.MetalLookAndFeel;
+import javax.swing.text.JTextComponent;
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.event.*;
@@ -78,7 +78,6 @@ public class EditorApp extends JFrame implements ActionListener {
 	private static final String PREF_NOTES = "notes_text"; //$NON-NLS-1$
 	private static final String PREF_COM = "tsc_show_commands"; //$NON-NLS-1$
 	private static final String PREF_ENTITY = "entity_list_window_visible"; //$NON-NLS-1$
-	private static final String PREF_SPRITESHEETWINDOW = "spritesheet_window_visible";
 	private static final String PREF_SCRIPT_DOCKED = "script_docked";
 	private static final String PREF_MISC = "misc_display_options"; //$NON-NLS-1$
 	private static final String PREF_SPRITE_SCALE = "sprite_scale"; //$NON-NLS-1$
@@ -90,6 +89,7 @@ public class EditorApp extends JFrame implements ActionListener {
 	private static final int NUM_DRAWMODE = 5;
 
 	// globally accessible components
+	private JRadioButton radioTile, radioEntity, radioScript, radioMapdata;
 	protected JPanel opsPanel;
 	protected JTabbedPane mapTabs;
 	protected JList<String> mapList;
@@ -103,9 +103,7 @@ public class EditorApp extends JFrame implements ActionListener {
 	private JDialog entityWindow;
 	private boolean showEntityWindow;
 	private JDialog npcTblWindow;
-	private boolean showSpritesheetWindow;
 	private JFrame helpWindow;
-	private JFrame spritesheetWindow;
 	private JTabbedPane scriptTabs;
 	private Set<TscPane> standaloneScripts = new HashSet<>();
 	private JTextPane notes;
@@ -163,6 +161,7 @@ public class EditorApp extends JFrame implements ActionListener {
 	// script-related
 	private boolean showingCommands;
 	private boolean scriptDocked;
+	private boolean scriptPanelOnEast = true;
 	private JPanel mapTabsContainer;
 	private LinkedList<String> recentFiles = new LinkedList<>();
 	private JMenu recentFilesMenu;
@@ -406,8 +405,6 @@ public class EditorApp extends JFrame implements ActionListener {
 		showTileWindow = prefs.getBoolean(PREF_HELPER, false);
 		showScriptWindow = prefs.getBoolean(PREF_SCRIPT, true);
 		showEntityWindow = prefs.getBoolean(PREF_ENTITY, false);
-		// showSpritesheetWindow = prefs.getBoolean(PREF_SPRITESHEETWINDOW, false);
-		showSpritesheetWindow = false;
 		notesText = prefs.get(PREF_NOTES, Messages.getString("EditorApp.49")); //$NON-NLS-1$
 		showingCommands = prefs.getBoolean(PREF_COM, true);
 
@@ -436,7 +433,6 @@ public class EditorApp extends JFrame implements ActionListener {
 			prefs.putBoolean(PREF_HELPER, showTileWindow);
 			prefs.putBoolean(PREF_SCRIPT, showScriptWindow);
 			prefs.putBoolean(PREF_ENTITY, showEntityWindow);
-			prefs.putBoolean(PREF_SPRITESHEETWINDOW, showSpritesheetWindow);
 			prefs.put(PREF_NOTES, notes.getText());
 			prefs.putBoolean(PREF_COM, showingCommands);
 			int misc = 0;
@@ -459,7 +455,7 @@ public class EditorApp extends JFrame implements ActionListener {
 		File rectFile = new File("editor.rect"); //$NON-NLS-1$
 		try {
 			BufferedWriter out = new BufferedWriter(new FileWriter(rectFile));
-			Window[] wArray = { this, tilesetWindow, scriptWindow, helpWindow, entityWindow, spritesheetWindow };
+			Window[] wArray = { this, tilesetWindow, scriptWindow, helpWindow, entityWindow };
 			for (Window w : wArray) {
 				Point l = w.getLocation();
 				Dimension d = w.getSize();
@@ -526,6 +522,41 @@ public class EditorApp extends JFrame implements ActionListener {
 						refreshCurrentMap();
 					}
 				});
+		c.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_F1, 0), "perspective tile"); //$NON-NLS-1$
+		c.getActionMap().put("perspective tile", new AbstractAction() { //$NON-NLS-1$
+			private static final long serialVersionUID = 1L;
+			@Override public void actionPerformed(ActionEvent e) { radioTile.doClick(); }
+		});
+		c.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_F2, 0), "perspective entity"); //$NON-NLS-1$
+		c.getActionMap().put("perspective entity", new AbstractAction() { //$NON-NLS-1$
+			private static final long serialVersionUID = 1L;
+			@Override public void actionPerformed(ActionEvent e) { radioEntity.doClick(); }
+		});
+		c.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_F3, 0), "perspective script"); //$NON-NLS-1$
+		c.getActionMap().put("perspective script", new AbstractAction() { //$NON-NLS-1$
+			private static final long serialVersionUID = 1L;
+			@Override public void actionPerformed(ActionEvent e) { radioScript.doClick(); }
+		});
+		c.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_F4, 0), "perspective mapdata"); //$NON-NLS-1$
+		c.getActionMap().put("perspective mapdata", new AbstractAction() { //$NON-NLS-1$
+			private static final long serialVersionUID = 1L;
+			@Override public void actionPerformed(ActionEvent e) { radioMapdata.doClick(); }
+		});
+		c.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Q, 0), "toggle tile entity"); //$NON-NLS-1$
+		c.getActionMap().put("toggle tile entity", new AbstractAction() { //$NON-NLS-1$
+			private static final long serialVersionUID = 1L;
+			@Override public void actionPerformed(ActionEvent e) {
+				Component focused = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
+				if (focused instanceof JTextComponent || focused instanceof JComboBox) {
+					return;
+				}
+				if (activePerspective.equals(PERSPECTIVE_TILE)) {
+					radioEntity.doClick();
+				} else {
+					radioTile.doClick();
+				}
+			}
+		});
 	}
 
 	private void applyDarkTheme() {
@@ -765,6 +796,7 @@ public class EditorApp extends JFrame implements ActionListener {
 		menuBar.add(buildFileMenu());
 		menuBar.add(buildViewMenu());
 		menuBar.add(buildActionMenu());
+		menuBar.add(buildEditorMenu());
 		menuBar.add(buildHelpMenu());
 
 		// add the whole menu now
@@ -788,17 +820,17 @@ public class EditorApp extends JFrame implements ActionListener {
 		// mainPanel.setMinimumSize(new Dimension(600, 400));
 		// JPanel opsPanel; -- is class variable
 		// setup the radio group
-		JRadioButton radioTile = new JRadioButton(new PerspectiveAction(PERSPECTIVE_TILE));
+		radioTile = new JRadioButton(new PerspectiveAction(PERSPECTIVE_TILE));
 		radioTile.setText(Messages.getString("EditorApp.55")); //$NON-NLS-1$
 		radioTile.setSelected(true);
 		radioTile.setOpaque(false);
-		JRadioButton radioEntity = new JRadioButton(new PerspectiveAction(PERSPECTIVE_ENTITY));
+		radioEntity = new JRadioButton(new PerspectiveAction(PERSPECTIVE_ENTITY));
 		radioEntity.setText(Messages.getString("EditorApp.56")); //$NON-NLS-1$
 		radioEntity.setOpaque(false);
-		JRadioButton radioScript = new JRadioButton(new PerspectiveAction(PERSPECTIVE_TSC));
+		radioScript = new JRadioButton(new PerspectiveAction(PERSPECTIVE_TSC));
 		radioScript.setText(Messages.getString("EditorApp.57")); //$NON-NLS-1$
 		radioScript.setOpaque(false);
-		JRadioButton radioMapdata = new JRadioButton(new PerspectiveAction(PERSPECTIVE_MAPDATA));
+		radioMapdata = new JRadioButton(new PerspectiveAction(PERSPECTIVE_MAPDATA));
 		radioMapdata.setText(Messages.getString("EditorApp.58")); //$NON-NLS-1$
 		radioMapdata.setOpaque(false);
 		ButtonGroup group = new ButtonGroup();
@@ -1155,19 +1187,6 @@ public class EditorApp extends JFrame implements ActionListener {
 		helpWindow.setLocation(parentPos);
 		helpWindow.setVisible(false);
 
-		spritesheetWindow = new SpritesheetOptimizer(iMan);
-		spritesheetWindow.addWindowListener(new WindowAdapter() {
-			public void windowClosing(WindowEvent e) {
-				showSpritesheetWindow = false;
-				((JFrame) e.getSource()).setVisible(false);
-				// switchPerspective(activePerspective);
-			}
-		});
-		parentPos.x += 50;
-		parentPos.y += 50;
-		spritesheetWindow.setLocation(parentPos);
-		spritesheetWindow.setVisible(showSpritesheetWindow);
-
 		// Attempt to remember last window sizes and positions
 		File winFile = new File("editor.rect"); //$NON-NLS-1$
 		try {
@@ -1182,8 +1201,6 @@ public class EditorApp extends JFrame implements ActionListener {
 			helpWindow.setSize(sc.nextInt(), sc.nextInt());
 			entityWindow.setLocation(sc.nextInt(), sc.nextInt());
 			entityWindow.setSize(sc.nextInt(), sc.nextInt());
-			spritesheetWindow.setLocation(sc.nextInt(), sc.nextInt());
-			spritesheetWindow.setSize(sc.nextInt(), sc.nextInt());
 			sc.close();
 		} catch (Exception e1) {
 			// do nothing
@@ -1194,7 +1211,6 @@ public class EditorApp extends JFrame implements ActionListener {
 			scriptWindow.setCursor(ResourceManager.cursor);
 			helpWindow.setCursor(ResourceManager.cursor);
 			entityWindow.setCursor(ResourceManager.cursor);
-			spritesheetWindow.setCursor(ResourceManager.cursor);
 		}
 	}
 
@@ -1297,21 +1313,41 @@ public class EditorApp extends JFrame implements ActionListener {
 		pickCol.setText(Messages.getString("EditorApp.83")); //$NON-NLS-1$
 		opsMenu.add(pickCol);
 
-		JMenuItem editorConfig = new JMenuItem(new AbstractAction() {
+		return opsMenu;
+	}
+
+	@SuppressWarnings("serial")
+	private JMenu buildEditorMenu() {
+		JMenuItem menuItem;
+		JMenu editorMenu = new JMenu("Editor");
+
+		menuItem = new JMenuItem(new AbstractAction() {
+			private static final long serialVersionUID = -5667436162643974389L;
+
+			@Override
+			public void actionPerformed(ActionEvent eve) {
+				airhorn();
+				new EditorConfigDialog(EditorApp.this, iMan);
+			}
+		});
+		menuItem.setText("Editor Configuration");
+		editorMenu.add(menuItem);
+
+		menuItem = new JMenuItem(new AbstractAction() {
 			private static final long serialVersionUID = 22747309347145031L;
 
 			@Override
 			public void actionPerformed(ActionEvent arg0) {
-				new BlIniDialog(EditorApp.this, iMan.getImg(ResourceManager.rsrcBgWhite2));
+				airhorn();
+					new BlIniDialog(EditorApp.this, iMan.getImg(ResourceManager.rsrcBgWhite2));
 			}
-
 		});
-		editorConfig.setText("Edit Project Config Settings"); //$NON-NLS-1$
-		editorConfig.setEnabled(false);
-		opsMenu.add(editorConfig);
-		this.buttonsToEnableOnProjectLoad.add(editorConfig);
+		menuItem.setText("Edit Project Config Settings");
+		menuItem.setEnabled(false);
+		this.buttonsToEnableOnProjectLoad.add(menuItem);
+		editorMenu.add(menuItem);
 
-		return opsMenu;
+		return editorMenu;
 	}
 
 	private JMenu buildFileMenu() {
@@ -1319,8 +1355,8 @@ public class EditorApp extends JFrame implements ActionListener {
 		JMenu fileMenu = new JMenu(Messages.getString("EditorApp.84")); //$NON-NLS-1$
 
 		// populate the file menu
-		menuItem = new JMenuItem(Messages.getString("EditorApp.85")); //$NON-NLS-1$
-		menuItem.setActionCommand("FileMenu_New"); //$NON-NLS-1$
+		menuItem = new JMenuItem("Unload Mod");
+		menuItem.setActionCommand("FileMenu_UnloadMod");
 		menuItem.addActionListener(this);
 		fileMenu.add(menuItem);
 		menuItem = new JMenuItem(Messages.getString("EditorApp.87")); //$NON-NLS-1$
@@ -1884,7 +1920,7 @@ public class EditorApp extends JFrame implements ActionListener {
 		searchSizePanel.setLayout(new BoxLayout(searchSizePanel, BoxLayout.Y_AXIS));
 		searchSizePanel.setBackground(new Color(0, 0, 0, 0));
 
-		final Dimension compSize = new Dimension(130, 26);
+		final Dimension compSize = new Dimension(180, 30);
 
 		// entity search box
 		JTextField searchField = new JTextField("");
@@ -2008,12 +2044,23 @@ public class EditorApp extends JFrame implements ActionListener {
 
 			@Override
 			public void actionPerformed(ActionEvent eve) {
-				// rebuild script pane
 				airhorn();
-				if (TscPane.getComPanel() != null) {
+				showingCommands = true;
+				if (scriptDocked) {
+					rebuildMapTabsContainer();
+				} else if (TscPane.getComPanel() != null) {
 					JPanel p = new JPanel(new BorderLayout());
 					p.add(scriptTabs, BorderLayout.CENTER);
-					p.add(TscPane.getComPanel(), BorderLayout.EAST);
+					p.add(buildScriptSidePanel(), scriptPanelOnEast ? BorderLayout.EAST : BorderLayout.WEST);
+					@SuppressWarnings("serial")
+					JButton btn = new JButton(new AbstractAction() {
+						@Override
+						public void actionPerformed(ActionEvent a) {
+							dockOrUndockScript();
+						}
+					});
+					btn.setText("Dock");
+					p.add(btn, BorderLayout.SOUTH);
 					scriptWindow.setContentPane(p);
 					scriptWindow.validate();
 				}
@@ -2030,13 +2077,26 @@ public class EditorApp extends JFrame implements ActionListener {
 
 			@Override
 			public void actionPerformed(ActionEvent eve) {
-				// rebuild script pane
 				airhorn();
-				JPanel p = new JPanel(new BorderLayout());
-				p.add(new JScrollPane(TscPane.getDefPanel()), BorderLayout.EAST);
-				p.add(scriptTabs, BorderLayout.CENTER);
-				scriptWindow.setContentPane(p);
-				scriptWindow.validate();
+				showingCommands = false;
+				if (scriptDocked) {
+					rebuildMapTabsContainer();
+				} else {
+					JPanel p = new JPanel(new BorderLayout());
+					p.add(scriptTabs, BorderLayout.CENTER);
+					p.add(buildScriptSidePanel(), scriptPanelOnEast ? BorderLayout.EAST : BorderLayout.WEST);
+					@SuppressWarnings("serial")
+					JButton btn = new JButton(new AbstractAction() {
+						@Override
+						public void actionPerformed(ActionEvent a) {
+							dockOrUndockScript();
+						}
+					});
+					btn.setText("Dock");
+					p.add(btn, BorderLayout.SOUTH);
+					scriptWindow.setContentPane(p);
+					scriptWindow.validate();
+				}
 			}
 		});
 		defButton.setOpaque(false);
@@ -2467,14 +2527,8 @@ public class EditorApp extends JFrame implements ActionListener {
 					mapTabs.getComponentCount());
 			mapTabs.setSelectedComponent(contents);
 			if (scriptWindow.getName().equals(Messages.getString("EditorApp.2"))) { //$NON-NLS-1$
-				// needs to be initialized
-				if (showingCommands) {
-					scriptWindow.add(TscPane.getComPanel(), BorderLayout.EAST);
-				} else {
-					JScrollPane defScroll = new JScrollPane(TscPane.getDefPanel());
-					scriptWindow.add(defScroll, BorderLayout.EAST);
-				}
 				scriptWindow.add(scriptTabs, BorderLayout.CENTER);
+				scriptWindow.add(buildScriptSidePanel(), scriptPanelOnEast ? BorderLayout.EAST : BorderLayout.WEST);
 				@SuppressWarnings("serial")
 				JButton scriptDockButton = new JButton(new AbstractAction() {
 					@Override
@@ -2534,14 +2588,8 @@ public class EditorApp extends JFrame implements ActionListener {
 		mapTabs.insertTab(mapdat.getFile(), null, contents, mapdat.getMapname(), mapTabs.getComponentCount());
 		mapTabs.setSelectedComponent(contents);
 		if (scriptWindow.getName().equals(Messages.getString("EditorApp.2"))) { //$NON-NLS-1$
-			// needs to be initialized
-			if (showingCommands) {
-				scriptWindow.add(TscPane.getComPanel(), BorderLayout.WEST);
-			} else {
-				JScrollPane defScroll = new JScrollPane(TscPane.getDefPanel());
-				scriptWindow.add(defScroll, BorderLayout.WEST);
-			}
 			scriptWindow.add(scriptTabs, BorderLayout.CENTER);
+			scriptWindow.add(buildScriptSidePanel(), scriptPanelOnEast ? BorderLayout.EAST : BorderLayout.WEST);
 			@SuppressWarnings("serial")
 			JButton scriptDockButton = new JButton(new AbstractAction() {
 				@Override
@@ -2656,38 +2704,21 @@ public class EditorApp extends JFrame implements ActionListener {
 					}
 				}
 			}
-		} else if (e.getActionCommand().equals("FileMenu_New")) { //$NON-NLS-1$
+		} else if (e.getActionCommand().equals("FileMenu_UnloadMod")) {
 			airhorn();
 			if (exeData != null)
 				if (!saveAll(true))
 					return;
-			// purge existing memory
-			fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-			StrTools.msgBox(Messages.getString("EditorApp.132") + //$NON-NLS-1$
-					Messages.getString("EditorApp.133")); //$NON-NLS-1$
-			retVal = fc.showOpenDialog(this);
-			if (retVal == JFileChooser.APPROVE_OPTION) {
-				try {
-					File dir = fc.getSelectedFile();
-					if (!dir.exists()) {
-						// noinspection ResultOfMethodCallIgnored
-						dir.mkdirs();
-					}
-					File tblFile = new File(dir + "/dsmap.bin"); //$NON-NLS-1$
-					if (tblFile.exists()) {
-						int response = JOptionPane.showConfirmDialog(this, Messages.getString("EditorApp.135"), //$NON-NLS-1$
-								Messages.getString("EditorApp.137"), //$NON-NLS-1$
-								JOptionPane.YES_NO_OPTION);
-						if (response != JOptionPane.YES_OPTION) {
-							return;
-						}
-					}
-					GameInfo.writeDefaultFiles(tblFile);
-					loadFile(tblFile);
-				} catch (IOException e1) {
-					e1.printStackTrace();
-				}
+			purgeData();
+			exeData = null;
+			mapList.setListData(new String[0]);
+			for (AbstractButton b : buttonsToEnableOnProjectLoad) {
+				b.setEnabled(false);
 			}
+			for (AbstractButton b : buttonsToEnableOnExeLoad) {
+				b.setEnabled(false);
+			}
+			setTitle("");
 		} else if (e.getActionCommand().equals("FileMenu_Last")) { //$NON-NLS-1$
 			airhorn();
 			if (exeData != null)
@@ -3044,6 +3075,47 @@ public class EditorApp extends JFrame implements ActionListener {
 		return true;
 	}
 
+	private JPanel buildScriptSidePanel() {
+		JPanel wrapper = new JPanel(new BorderLayout());
+		@SuppressWarnings("serial")
+		JButton flipBtn = new JButton(new AbstractAction() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				flipScriptPanel();
+			}
+		});
+		flipBtn.setText("Flip");
+		wrapper.add(flipBtn, BorderLayout.NORTH);
+		if (showingCommands) {
+			wrapper.add(TscPane.getComPanel(), BorderLayout.CENTER);
+		} else {
+			wrapper.add(new JScrollPane(TscPane.getDefPanel()), BorderLayout.CENTER);
+		}
+		return wrapper;
+	}
+
+	public void flipScriptPanel() {
+		scriptPanelOnEast = !scriptPanelOnEast;
+		if (!scriptDocked) {
+			scriptWindow.getContentPane().removeAll();
+			JPanel side = buildScriptSidePanel();
+			@SuppressWarnings("serial")
+			JButton dockBtn = new JButton(new AbstractAction() {
+				@Override
+				public void actionPerformed(ActionEvent e) {
+					dockOrUndockScript();
+				}
+			});
+			dockBtn.setText("Dock");
+			scriptWindow.add(scriptTabs, BorderLayout.CENTER);
+			scriptWindow.add(side, scriptPanelOnEast ? BorderLayout.EAST : BorderLayout.WEST);
+			scriptWindow.add(dockBtn, BorderLayout.SOUTH);
+			scriptWindow.validate();
+			scriptWindow.repaint();
+		}
+		rebuildMapTabsContainer();
+	}
+
 	public void dockOrUndockTileset() {
 		showTileWindow = !showTileWindow;
 		switchPerspective(activePerspective);
@@ -3058,13 +3130,8 @@ public class EditorApp extends JFrame implements ActionListener {
 		scriptDocked = !scriptDocked;
 		if (!scriptDocked) {
 			scriptWindow.getContentPane().removeAll();
-			if (showingCommands) {
-				scriptWindow.add(TscPane.getComPanel(), BorderLayout.EAST);
-			} else {
-				JScrollPane defScroll = new JScrollPane(TscPane.getDefPanel());
-				scriptWindow.add(defScroll, BorderLayout.EAST);
-			}
 			scriptWindow.add(scriptTabs, BorderLayout.CENTER);
+			scriptWindow.add(buildScriptSidePanel(), scriptPanelOnEast ? BorderLayout.EAST : BorderLayout.WEST);
 			@SuppressWarnings("serial")
 			JButton scriptDockButton = new JButton(new AbstractAction() {
 				@Override
@@ -3089,13 +3156,8 @@ public class EditorApp extends JFrame implements ActionListener {
 		mapTabsContainer.removeAll();
 		if (scriptDocked) {
 			JPanel scriptPanel = new JPanel(new BorderLayout());
-			if (showingCommands) {
-				scriptPanel.add(TscPane.getComPanel(), BorderLayout.EAST);
-			} else {
-				JScrollPane defScroll = new JScrollPane(TscPane.getDefPanel());
-				scriptPanel.add(defScroll, BorderLayout.EAST);
-			}
 			scriptPanel.add(scriptTabs, BorderLayout.CENTER);
+			scriptPanel.add(buildScriptSidePanel(), scriptPanelOnEast ? BorderLayout.EAST : BorderLayout.WEST);
 
 			@SuppressWarnings("serial")
 			JButton dockButton = new JButton(new AbstractAction() {

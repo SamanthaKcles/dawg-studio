@@ -55,11 +55,7 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 	private static List<String> musicList = getMusicList();
 	private static List<String> sfxList = getSfxList();
 	private static List<String> equipList = getEquipList();
-	private static List<Color> colorPresetColors = new ArrayList<>();
-	private static List<String> colorPresetNames = new ArrayList<>();
-	static {
-		loadColorPresets();
-	}
+	private static Set<String> eventEnders = loadEventEnders();
 	private static Vector<String> def1 = new Vector<>();
 	private static Vector<String> def2 = new Vector<>();
 	private final JTextArea comLabel = new JTextArea(Messages.getString("TscPane.9"), 2, 18); //$NON-NLS-1$
@@ -80,6 +76,8 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 	private boolean justSaved = false;
 	private boolean saveSource = true;
 	private UndoManager undoManager = new UndoManager();
+	private int lastTagPos = -1;
+	private boolean updatingFromExtras = false;
 
 	private EditorApp.LoadMapAction loadmap = null;
 
@@ -275,7 +273,7 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 				textBoxKeyReleased(evt);
 			}
 		});
-		undoManager.setLimit(500);
+		undoManager.setLimit(180);
 		this.getDocument().addUndoableEditListener(new UndoableEditListener() {
 			@Override
 			public void undoableEditHappened(UndoableEditEvent e) {
@@ -348,12 +346,14 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 					String searchTxt = txt.substring(0, cPos);
 					int tagPos = searchTxt.lastIndexOf('<');
 					if (tagPos < 0) {
+						lastTagPos = -1;
 						return;
 					}
 					if ((txt.length() - tagPos >= 4)) {
 						String tag = txt.substring(tagPos, tagPos + 4);
 						int index = commandList.getNextMatch(tag, 0, Position.Bias.Forward);
 						commandList.setSelectedIndex(index);
+						lastTagPos = tagPos;
 						setCommandExtras(index, txt.substring(tagPos, txt.length()));
 					}
 				}
@@ -384,6 +384,7 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 		if (cmd.length() >= commandSize) {
 			for (int i = 0; i < selCom.numParam; i++) {
 				int paramLen = selCom.paramLen[i];
+				final int paramOffset = paramStart;
 				String arg;
 				if (paramLen < 0) {
 					int end = cmd.indexOf('$', paramStart);
@@ -398,7 +399,7 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 				}
 				if (selCom.paramSep && i < selCom.numParam - 1)
 					paramStart++;
-				addCommandExtra(selCom.CE_param[i], arg);
+				addCommandExtra(selCom.CE_param[i], arg, paramOffset, paramLen);
 			}
 		}
 		commandListExtras.revalidate();
@@ -429,7 +430,254 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 		put('$', "String");
 	}};
 
-	private void addCommandExtra(char extraType, String arg) {
+	private void updateArgInScript(int paramOffset, int paramLen, String newValue) {
+		if (lastTagPos < 0 || updatingFromExtras) return;
+		updatingFromExtras = true;
+		try {
+			StyledDocument doc = getStyledDocument();
+			int docPos = lastTagPos + paramOffset;
+			int startLine = 0;
+			if (paramLen > 0) {
+				String padded;
+				try {
+					int num = Integer.parseInt(newValue.trim());
+					padded = String.format("%0" + paramLen + "d", num);
+					if (padded.length() > paramLen) padded = padded.substring(padded.length() - paramLen);
+				} catch (NumberFormatException e) {
+					padded = newValue.trim();
+					while (padded.length() < paramLen) padded = "0" + padded;
+					if (padded.length() > paramLen) padded = padded.substring(padded.length() - paramLen);
+				}
+				String text = doc.getText(0, docPos);
+				for (int i = 0; i < text.length(); i++) {
+					if (text.charAt(i) == '\n') startLine++;
+				}
+				doc.remove(docPos, paramLen);
+				doc.insertString(docPos, padded, null);
+			} else {
+				// variable-length string param terminated by '$'
+				String rawText = doc.getText(0, doc.getLength());
+				for (int i = 0; i < docPos; i++) {
+					if (rawText.charAt(i) == '\n') startLine++;
+				}
+				int end = rawText.indexOf('$', docPos);
+				int removeLen = (end < 0 ? rawText.length() : end + 1) - docPos;
+				doc.remove(docPos, removeLen);
+				doc.insertString(docPos, newValue + "$", null);
+			}
+			highlightDoc(doc, startLine - 5, startLine + 5);
+			markChanged();
+		} catch (BadLocationException e) {
+			e.printStackTrace();
+		} finally {
+			updatingFromExtras = false;
+		}
+	}
+
+	private void showFacePicker(BufferedImage faceSheet, int faceSize, int paramOffset, int paramLen) {
+		Window owner = SwingUtilities.getWindowAncestor(this);
+		JDialog picker = new JDialog(owner instanceof Frame ? (Frame) owner : null, "Select Face", true);
+		int tileSize = exeDat.getConfig().getTileSize();
+		int sourceFaceSize = (tileSize > 16) ? faceSize * (tileSize / 16) : faceSize;
+		BufferedImage displaySheet = faceSheet;
+		int displaySize = sourceFaceSize;
+		if (tileSize == 16) {
+			displaySize = sourceFaceSize * 2;
+			displaySheet = new BufferedImage(faceSheet.getWidth() * 2, faceSheet.getHeight() * 2, BufferedImage.TYPE_INT_ARGB);
+			Graphics2D g = displaySheet.createGraphics();
+			g.drawImage(faceSheet, 0, 0, faceSheet.getWidth() * 2, faceSheet.getHeight() * 2, null);
+			g.dispose();
+		}
+		int cols = faceSheet.getWidth() / sourceFaceSize;
+		final BufferedImage finalDisplaySheet = displaySheet;
+		final int finalDisplaySize = displaySize;
+		JPanel sheetPanel = new JPanel() {
+			private static final long serialVersionUID = 1L;
+			@Override public Dimension getPreferredSize() { return new Dimension(finalDisplaySheet.getWidth(), finalDisplaySheet.getHeight()); }
+			@Override protected void paintComponent(Graphics g) {
+				super.paintComponent(g);
+				g.drawImage(finalDisplaySheet, 0, 0, null);
+				g.setColor(new Color(200, 200, 200, 120));
+				int rows = finalDisplaySheet.getHeight() / finalDisplaySize;
+				for (int r = 0; r <= rows; r++) g.drawLine(0, r * finalDisplaySize, finalDisplaySheet.getWidth(), r * finalDisplaySize);
+				for (int c = 0; c <= cols; c++) g.drawLine(c * finalDisplaySize, 0, c * finalDisplaySize, finalDisplaySheet.getHeight());
+			}
+		};
+		sheetPanel.addMouseListener(new MouseAdapter() {
+			@Override public void mouseClicked(MouseEvent e) {
+				int newFace = (e.getY() / finalDisplaySize) * cols + (e.getX() / finalDisplaySize);
+				updateArgInScript(paramOffset, paramLen, String.valueOf(newFace));
+				picker.dispose();
+			}
+		});
+		sheetPanel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		JScrollPane scroll = new JScrollPane(sheetPanel);
+		int side = finalDisplaySheet.getWidth();
+		int vbarWidth = scroll.getVerticalScrollBar().getPreferredSize().width;
+		scroll.setPreferredSize(new Dimension(side + vbarWidth, side));
+		scroll.getVerticalScrollBar().setUnitIncrement(finalDisplaySize * 2);
+		scroll.getHorizontalScrollBar().setUnitIncrement(finalDisplaySize * 2);
+		picker.add(scroll);
+		picker.pack();
+		Point mousePos = MouseInfo.getPointerInfo().getLocation();
+		picker.setLocation(mousePos.x - picker.getWidth(), mousePos.y);
+		picker.setVisible(true);
+	}
+
+	private void showItemPicker(BufferedImage itemSheet, int itemW, int itemH, int paramOffset, int paramLen) {
+		Window owner = SwingUtilities.getWindowAncestor(this);
+		JDialog picker = new JDialog(owner instanceof Frame ? (Frame) owner : null, "Select Item", true);
+		int tileSize = exeDat.getConfig().getTileSize();
+		int sourceItemW = (tileSize > 16) ? itemW * (tileSize / 16) : itemW;
+		int sourceItemH = (tileSize > 16) ? itemH * (tileSize / 16) : itemH;
+		BufferedImage displaySheet = itemSheet;
+		int displayW = sourceItemW;
+		int displayH = sourceItemH;
+		if (tileSize == 16) {
+			displayW = sourceItemW * 2;
+			displayH = sourceItemH * 2;
+			displaySheet = new BufferedImage(itemSheet.getWidth() * 2, itemSheet.getHeight() * 2, BufferedImage.TYPE_INT_ARGB);
+			Graphics2D g = displaySheet.createGraphics();
+			g.drawImage(itemSheet, 0, 0, itemSheet.getWidth() * 2, itemSheet.getHeight() * 2, null);
+			g.dispose();
+		}
+		int cols = itemSheet.getWidth() / sourceItemW;
+		final BufferedImage finalDisplaySheet = displaySheet;
+		final int finalDisplayW = displayW;
+		final int finalDisplayH = displayH;
+		JPanel sheetPanel = new JPanel() {
+			private static final long serialVersionUID = 1L;
+			@Override public Dimension getPreferredSize() { return new Dimension(finalDisplaySheet.getWidth(), finalDisplaySheet.getHeight()); }
+			@Override protected void paintComponent(Graphics g) {
+				super.paintComponent(g);
+				g.drawImage(finalDisplaySheet, 0, 0, null);
+				g.setColor(new Color(200, 200, 200, 120));
+				int rows = finalDisplaySheet.getHeight() / finalDisplayH;
+				for (int r = 0; r <= rows; r++) g.drawLine(0, r * finalDisplayH, finalDisplaySheet.getWidth(), r * finalDisplayH);
+				for (int c = 0; c <= cols; c++) g.drawLine(c * finalDisplayW, 0, c * finalDisplayW, finalDisplaySheet.getHeight());
+			}
+		};
+		sheetPanel.addMouseListener(new MouseAdapter() {
+			@Override public void mouseClicked(MouseEvent e) {
+				int newItem = (e.getY() / finalDisplayH) * cols + (e.getX() / finalDisplayW);
+				updateArgInScript(paramOffset, paramLen, String.valueOf(newItem));
+				picker.dispose();
+			}
+		});
+		sheetPanel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		JScrollPane scroll = new JScrollPane(sheetPanel);
+		int vbarWidth = scroll.getVerticalScrollBar().getPreferredSize().width;
+		scroll.setPreferredSize(new Dimension(finalDisplaySheet.getWidth() + vbarWidth, Math.min(400, finalDisplaySheet.getHeight())));
+		scroll.getVerticalScrollBar().setUnitIncrement(finalDisplayH * 2);
+		scroll.getHorizontalScrollBar().setUnitIncrement(finalDisplayW * 2);
+		picker.add(scroll);
+		picker.pack();
+		Point mousePos = MouseInfo.getPointerInfo().getLocation();
+		picker.setLocation(mousePos.x - picker.getWidth(), mousePos.y);
+		picker.setVisible(true);
+	}
+
+	private void showGraphicPicker(BufferedImage graphicSheet, int graphicSize, int paramOffset, int paramLen) {
+		Window owner = SwingUtilities.getWindowAncestor(this);
+		JDialog picker = new JDialog(owner instanceof Frame ? (Frame) owner : null, "Select Graphic", true);
+		int tileSize = exeDat.getConfig().getTileSize();
+		int sourceGraphicSize = (tileSize > 16) ? graphicSize * (tileSize / 16) : graphicSize;
+		BufferedImage displaySheet = graphicSheet;
+		int displaySize = sourceGraphicSize;
+		if (tileSize == 16) {
+			displaySize = sourceGraphicSize * 2;
+			displaySheet = new BufferedImage(graphicSheet.getWidth() * 2, graphicSheet.getHeight() * 2, BufferedImage.TYPE_INT_ARGB);
+			Graphics2D g = displaySheet.createGraphics();
+			g.drawImage(graphicSheet, 0, 0, graphicSheet.getWidth() * 2, graphicSheet.getHeight() * 2, null);
+			g.dispose();
+		}
+		int cols = graphicSheet.getWidth() / sourceGraphicSize;
+		final BufferedImage finalDisplaySheet = displaySheet;
+		final int finalDisplaySize = displaySize;
+		JPanel sheetPanel = new JPanel() {
+			private static final long serialVersionUID = 1L;
+			@Override public Dimension getPreferredSize() { return new Dimension(finalDisplaySheet.getWidth(), finalDisplaySheet.getHeight()); }
+			@Override protected void paintComponent(Graphics g) {
+				super.paintComponent(g);
+				g.drawImage(finalDisplaySheet, 0, 0, null);
+				g.setColor(new Color(200, 200, 200, 120));
+				int rows = finalDisplaySheet.getHeight() / finalDisplaySize;
+				for (int r = 0; r <= rows; r++) g.drawLine(0, r * finalDisplaySize, finalDisplaySheet.getWidth(), r * finalDisplaySize);
+				for (int c = 0; c <= cols; c++) g.drawLine(c * finalDisplaySize, 0, c * finalDisplaySize, finalDisplaySheet.getHeight());
+			}
+		};
+		sheetPanel.addMouseListener(new MouseAdapter() {
+			@Override public void mouseClicked(MouseEvent e) {
+				int newGraphic = (e.getY() / finalDisplaySize) * cols + (e.getX() / finalDisplaySize);
+				updateArgInScript(paramOffset, paramLen, String.valueOf(newGraphic));
+				picker.dispose();
+			}
+		});
+		sheetPanel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		JScrollPane scroll = new JScrollPane(sheetPanel);
+		int vbarWidth = scroll.getVerticalScrollBar().getPreferredSize().width;
+		int hbarHeight = scroll.getHorizontalScrollBar().getPreferredSize().height;
+		scroll.setPreferredSize(new Dimension(finalDisplaySheet.getWidth() + vbarWidth, Math.min(400, finalDisplaySheet.getHeight() + hbarHeight)));
+		scroll.getVerticalScrollBar().setUnitIncrement(finalDisplaySize * 2);
+		scroll.getHorizontalScrollBar().setUnitIncrement(finalDisplaySize * 2);
+		picker.add(scroll);
+		picker.pack();
+		Point mousePos = MouseInfo.getPointerInfo().getLocation();
+		picker.setLocation(mousePos.x - picker.getWidth(), mousePos.y);
+		picker.setVisible(true);
+	}
+
+	private void showListPicker(String title, java.util.List<String> items, int selectedIndex, int paramOffset, int paramLen) {
+		Window owner = SwingUtilities.getWindowAncestor(this);
+		JDialog picker = new JDialog(owner instanceof Frame ? (Frame) owner : null, title, true);
+		DefaultListModel<String> model = new DefaultListModel<>();
+		for (String item : items) model.addElement(item);
+		JList<String> list = new JList<>(model);
+		list.setSelectedIndex(Math.max(0, Math.min(selectedIndex, items.size() - 1)));
+		list.addMouseListener(new MouseAdapter() {
+			@Override public void mouseClicked(MouseEvent e) {
+				if (e.getClickCount() == 1) {
+					updateArgInScript(paramOffset, paramLen, String.valueOf(list.getSelectedIndex()));
+					picker.dispose();
+				}
+			}
+		});
+		JScrollPane scroll = new JScrollPane(list);
+		scroll.setPreferredSize(new Dimension(300, 400));
+		picker.add(scroll);
+		picker.pack();
+		Point mousePos = MouseInfo.getPointerInfo().getLocation();
+		picker.setLocation(mousePos.x - picker.getWidth(), mousePos.y);
+		picker.setVisible(true);
+	}
+
+	private void showEquipPicker(java.util.List<String> items, int selectedIndex, int paramOffset, int paramLen) {
+		Window owner = SwingUtilities.getWindowAncestor(this);
+		JDialog picker = new JDialog(owner instanceof Frame ? (Frame) owner : null, "Select Equip", true);
+		DefaultListModel<String> model = new DefaultListModel<>();
+		for (String item : items) model.addElement(item);
+		JList<String> list = new JList<>(model);
+		list.setSelectedIndex(Math.max(0, Math.min(selectedIndex, items.size() - 1)));
+		list.addMouseListener(new MouseAdapter() {
+			@Override public void mouseClicked(MouseEvent e) {
+				if (e.getClickCount() == 1) {
+					int idx = list.getSelectedIndex();
+					int val = (idx == 0) ? 0 : (1 << (idx - 1));
+					updateArgInScript(paramOffset, paramLen, String.valueOf(val));
+					picker.dispose();
+				}
+			}
+		});
+		JScrollPane scroll = new JScrollPane(list);
+		scroll.setPreferredSize(new Dimension(300, 400));
+		picker.add(scroll);
+		picker.pack();
+		Point mousePos = MouseInfo.getPointerInfo().getLocation();
+		picker.setLocation(mousePos.x - picker.getWidth(), mousePos.y);
+		picker.setVisible(true);
+	}
+
+	private void addCommandExtra(char extraType, String arg, int paramOffset, int paramLen) {
 		int argNum = StrTools.ascii2Num_CS(arg);
 		JPanel jp = new JPanel();
 		jp.add(new JLabel(extraNameMap.get(extraType) + ": "));
@@ -442,150 +690,270 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 			}
 		}
 
+		final int fArgNum = argNum;
+
 		switch (extraType) {
-		//dumb args that are basically just a number
-		case 'A': //ammo amount
-		case 'd': //direction
-		case 'F': //flag
-		case 'l': //illustration #
-		case 'N': //NPC num
-		case 'x': //x coordinate
-		case 'y': //y coordinate
-		case '#': //number
-		case '.': //ticks
-			jp.add(new JLabel(argNum + ""));
+		case 'A': case 'd': case 'F': case 'l': case 'N':
+		case 'x': case 'y': case '#': case '.': {
+			JTextField tf = new JTextField(arg.trim(), 6);
+			tf.addActionListener(ae -> updateArgInScript(paramOffset, paramLen, tf.getText()));
+			jp.add(tf);
 			break;
-		case '$': //string
-			String display = arg;
-			if (display.endsWith("$")) display = display.substring(0, display.length() - 1);
-			jp.add(new JLabel(display));
+		}
+		case '$': {
+			String display = arg.endsWith("$") ? arg.substring(0, arg.length() - 1) : arg;
+			JTextField tf = new JTextField(display, 10);
+			tf.addActionListener(ae -> updateArgInScript(paramOffset, paramLen, tf.getText()));
+			jp.add(tf);
 			break;
-		case 't': //tile
+		}
+		case 'e': {
+			JTextField tf = new JTextField(arg.trim(), 5);
+			tf.addActionListener(ae -> updateArgInScript(paramOffset, paramLen, tf.getText()));
+			jp.add(tf);
+			jp.add(new LinkLabel(">", new EventLink(arg)));
+			break;
+		}
+		case 'm': {
+			try {
+				Mapdata[] allMaps = exeDat.getMapdata();
+				java.util.List<String> mapList = new ArrayList<>();
+				for (int i = 0; i < allMaps.length; i++) {
+					mapList.add(i + " - " + allMaps[i].getMapname());
+				}
+				JLabel mapLabel = new JLabel(mapList.get(Math.max(0, Math.min(fArgNum, allMaps.length - 1))));
+				mapLabel.setForeground(new Color(255, 150, 215));
+				mapLabel.setOpaque(true);
+				mapLabel.setBackground(new Color(60, 60, 80));
+				mapLabel.setBorder(BorderFactory.createCompoundBorder(
+					BorderFactory.createLineBorder(new Color(255, 150, 215), 1),
+					BorderFactory.createEmptyBorder(2, 4, 2, 4)));
+				mapLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+				mapLabel.setToolTipText("Select Maps");
+				mapLabel.addMouseListener(new MouseAdapter() {
+					@Override
+					public void mouseClicked(MouseEvent e) {
+						showListPicker("Select Map", mapList, fArgNum, paramOffset, paramLen);
+					}
+				});
+				jp.add(mapLabel);
+			} catch (Exception e) {
+				JTextField tf = new JTextField(arg.trim(), 4);
+				tf.addActionListener(ae -> updateArgInScript(paramOffset, paramLen, tf.getText()));
+				jp.add(tf);
+			}
+			break;
+		}
+		case 'n': {
+			JPanel npcPanel = new JPanel();
+			npcPanel.setLayout(new BoxLayout(npcPanel, BoxLayout.Y_AXIS));
+			JTextField tf = new JTextField(arg.trim(), 4);
+			tf.addActionListener(ae -> updateArgInScript(paramOffset, paramLen, tf.getText()));
+			npcPanel.add(tf);
+			try {
+				JLabel npcName = new JLabel(exeDat.getAllEntities()[fArgNum].getName());
+				npcName.setFont(npcName.getFont().deriveFont(10f));
+				npcPanel.add(npcName);
+			} catch (Exception ignored) {}
+			jp.add(npcPanel);
+			break;
+		}
+		case 'u': {
+			java.util.List<String> formattedMusic = new ArrayList<>();
+			for (int i = 0; i < musicList.size(); i++) formattedMusic.add(i + ": " + musicList.get(i).trim());
+			JLabel musicLabel = new JLabel(formattedMusic.get(Math.max(0, Math.min(fArgNum, musicList.size() - 1))));
+			musicLabel.setForeground(new Color(255, 150, 215));
+			musicLabel.setOpaque(true);
+			musicLabel.setBackground(new Color(60, 60, 80));
+			musicLabel.setBorder(BorderFactory.createCompoundBorder(
+				BorderFactory.createLineBorder(new Color(255, 150, 215), 1),
+				BorderFactory.createEmptyBorder(2, 4, 2, 4)));
+			musicLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+			musicLabel.setToolTipText("Select Song");
+			musicLabel.addMouseListener(new MouseAdapter() {
+				@Override
+				public void mouseClicked(MouseEvent e) {
+					showListPicker("Select Song", formattedMusic, fArgNum, paramOffset, paramLen);
+				}
+			});
+			jp.add(musicLabel);
+			break;
+		}
+		case 's': {
+			java.util.List<String> formattedSfx = new ArrayList<>();
+			for (int i = 0; i < sfxList.size(); i++) formattedSfx.add(i + ": " + sfxList.get(i).trim());
+			JLabel sfxLabel = new JLabel(formattedSfx.get(Math.max(0, Math.min(fArgNum, sfxList.size() - 1))));
+			sfxLabel.setForeground(new Color(255, 150, 215));
+			sfxLabel.setOpaque(true);
+			sfxLabel.setBackground(new Color(60, 60, 80));
+			sfxLabel.setBorder(BorderFactory.createCompoundBorder(
+				BorderFactory.createLineBorder(new Color(255, 150, 215), 1),
+				BorderFactory.createEmptyBorder(2, 4, 2, 4)));
+			sfxLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+			sfxLabel.setToolTipText("Select Sound Effect");
+			sfxLabel.addMouseListener(new MouseAdapter() {
+				@Override
+				public void mouseClicked(MouseEvent e) {
+					showListPicker("Select SFX", formattedSfx, fArgNum, paramOffset, paramLen);
+				}
+			});
+			jp.add(sfxLabel);
+			break;
+		}
+		case 'E': {
+			if (equipList == null || equipList.isEmpty()) {
+				JTextField tf = new JTextField(arg.trim(), 6);
+				tf.addActionListener(ae -> updateArgInScript(paramOffset, paramLen, tf.getText()));
+				jp.add(tf);
+				break;
+			}
+			java.util.List<String> formattedEquip = new ArrayList<>();
+			formattedEquip.add("0 - None");
+			for (int i = 0; i < equipList.size() && i < 16; i++) {
+				formattedEquip.add((1 << i) + " - " + equipList.get(i).trim());
+			}
+			int eSelIdx = 0;
+			for (int i = 0; i < 16; i++) {
+				if (fArgNum == (1 << i)) { eSelIdx = i + 1; break; }
+			}
+			final int equipSelIdx = eSelIdx;
+			JLabel equipLabel = new JLabel(formattedEquip.get(eSelIdx));
+			equipLabel.setForeground(new Color(255, 150, 215));
+			equipLabel.setOpaque(true);
+			equipLabel.setBackground(new Color(60, 60, 80));
+			equipLabel.setBorder(BorderFactory.createCompoundBorder(
+				BorderFactory.createLineBorder(new Color(255, 150, 215), 1),
+				BorderFactory.createEmptyBorder(2, 4, 2, 4)));
+			equipLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+			equipLabel.setToolTipText("Select Equip");
+			equipLabel.addMouseListener(new MouseAdapter() {
+				@Override
+				public void mouseClicked(MouseEvent e) {
+					showEquipPicker(formattedEquip, equipSelIdx, paramOffset, paramLen);
+				}
+			});
+			jp.add(equipLabel);
+			break;
+		}
+		case 't': {
+			JTextField tf = new JTextField(arg.trim(), 4);
+			tf.addActionListener(ae -> updateArgInScript(paramOffset, paramLen, tf.getText()));
+			jp.add(tf);
 			Mapdata md = null;
 			try {
 				md = exeDat.getMapdata(mapNum);
 			} catch(Exception e) {
-				jp.add(new JLabel(argNum + ""));
 				break;
 			}
 			BlConfig conf = exeDat.getConfig();
 			BufferedImage tileImg = rm.getImg(new File(exeDat.getDataDirectory() + "/Stage/Prt" +  //$NON-NLS-1$
 					md.getTileset() + exeDat.getImgExtension()));
 			int setWidth = conf.getTilesetWidth();
-			if (setWidth <= 0) {
-				//get width as actual fittable tiles
-				setWidth = tileImg.getWidth() / conf.getTileSize();
-			}
-			int srcScale = exeDat.getConfig().getTileSize();
-			int sourceX = (argNum % setWidth) * srcScale;
-			int sourceY = (argNum / setWidth) * srcScale;
+			if (setWidth <= 0) setWidth = tileImg.getWidth() / conf.getTileSize();
+			int srcScale = conf.getTileSize();
+			int sourceX = (fArgNum % setWidth) * srcScale;
+			int sourceY = (fArgNum / setWidth) * srcScale;
 			try {
-				ImageIcon tileImage = new ImageIcon(tileImg.getSubimage(sourceX,
-						sourceY,
-						srcScale,
-						srcScale));
-				JLabel label = new JLabel(tileImage);
+				JLabel label = new JLabel(new ImageIcon(tileImg.getSubimage(sourceX, sourceY, srcScale, srcScale)));
 				label.setBackground(Color.black);
 				jp.add(label);
-			} catch (RasterFormatException ignored) {
-			}
+			} catch (RasterFormatException ignored) {}
 			break;
-		case 'a': //weapon number
+		}
+		case 'a': {
 			try {
-				ImageIcon weaponImage = new ImageIcon(
-						rm.getImg(exeDat.getArmsImageFile())
-								.getSubimage(exeDat.getConfig().getTileSize() * argNum,
-										0,
-										exeDat.getConfig().getTileSize(),
-										exeDat.getConfig().getTileSize()));
-				JLabel label = new JLabel(weaponImage);
-				label.setBackground(Color.black);
-				jp.add(label);
-			} catch (RasterFormatException ignored) {
-			}
-			break;
-		case 'e': //event
-			jp.add(new LinkLabel(arg + "", new EventLink(arg)));
-			break;
-		case 'f': //face
-			try {
-				int faceNum = argNum % 1000;
-				float assumedScale = exeDat.getConfig().getTileSize() / 16;
-				ImageIcon face = new ImageIcon(
-						rm.getImg(exeDat.getFaceFile())
-								.getSubimage((int) (48 * assumedScale) * (faceNum % 6),
-										(int) (48 * assumedScale) * (faceNum / 6),
-										(int) (48 * assumedScale),
-										(int) (48 * assumedScale)));
-				JLabel label = new JLabel(face);
-				label.setBackground(Color.black);
-				jp.add(label);
-			} catch (Exception ignored) {
-			}
-			break;
-		case 'i': //item #
-			try {
-				float assumedScale = exeDat.getConfig().getTileSize() / 16;
-				ImageIcon itemImage = new ImageIcon(
-						rm.getImg(exeDat.getItemImageFile())
-								.getSubimage((int) (32 * assumedScale) * (argNum % 8),
-										(int) (16 * assumedScale) * (argNum / 8),
-										(int) (32 * assumedScale),
-										(int) (16 * assumedScale)));
-				JLabel label = new JLabel(itemImage);
-				label.setBackground(Color.black);
-				label.setOpaque(true);
-				jp.add(label);
-			} catch (RasterFormatException ignored) {
-			}
-			break;
-		case 'm': //mapnum
-			if (loadmap != null) {
-				try {
-					jp.add(new LinkLabel(exeDat.getMapdata(argNum).getMapname(),
-							new MapLink(argNum)));
-				} catch (Exception ignored) {
+				int tileSize = exeDat.getConfig().getTileSize();
+				int graphicSize = (tileSize > 16) ? 16 * (tileSize / 16) : 16;
+				BufferedImage armsSheet = rm.getImg(exeDat.getArmsImageFile());
+				BufferedImage subImg = armsSheet.getSubimage(graphicSize * fArgNum, 0, graphicSize, graphicSize);
+				if (tileSize == 16) {
+					BufferedImage scaled = new BufferedImage(graphicSize * 2, graphicSize * 2, BufferedImage.TYPE_INT_ARGB);
+					Graphics2D g = scaled.createGraphics();
+					g.drawImage(subImg, 0, 0, graphicSize * 2, graphicSize * 2, null);
+					g.dispose();
+					subImg = scaled;
 				}
-			} else {
-				jp.add(new JLabel(argNum + ""));
-			}
+				JPanel graphicPanel = new JPanel();
+				graphicPanel.setLayout(new BoxLayout(graphicPanel, BoxLayout.Y_AXIS));
+				JLabel graphicLabel = new JLabel(new ImageIcon(subImg));
+				graphicLabel.setBackground(Color.black);
+				graphicLabel.setOpaque(true);
+				graphicLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+				graphicPanel.add(graphicLabel);
+				JButton selectGraphicBtn = new JButton("Select");
+				selectGraphicBtn.setFont(selectGraphicBtn.getFont().deriveFont(10f));
+				selectGraphicBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+				selectGraphicBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+				selectGraphicBtn.addActionListener(ae -> showGraphicPicker(armsSheet, 16, paramOffset, paramLen));
+				graphicPanel.add(selectGraphicBtn);
+				jp.add(graphicPanel);
+			} catch (Exception ignored) {}
 			break;
-		case 'n': //NPC type
+		}
+		case 'f': {
 			try {
-				jp.add(new JLabel(exeDat.getAllEntities()[argNum].getName()));
-			} catch (Exception ignored) {
-				jp.add(new JLabel(argNum + ""));
-			}
+				int faceNum = fArgNum % 1000;
+				int tileSize = exeDat.getConfig().getTileSize();
+				int faceSize = (tileSize > 16) ? 48 * (tileSize / 16) : 48;
+				BufferedImage faceSheet = rm.getImg(exeDat.getFaceFile());
+				BufferedImage subImg = faceSheet.getSubimage(
+						faceSize * (faceNum % 6), faceSize * (faceNum / 6), faceSize, faceSize);
+				if (tileSize == 16) {
+					BufferedImage scaled = new BufferedImage(faceSize * 2, faceSize * 2, BufferedImage.TYPE_INT_ARGB);
+					Graphics2D g = scaled.createGraphics();
+					g.drawImage(subImg, 0, 0, faceSize * 2, faceSize * 2, null);
+					g.dispose();
+					subImg = scaled;
+				}
+				JPanel facePanel = new JPanel();
+				facePanel.setLayout(new BoxLayout(facePanel, BoxLayout.Y_AXIS));
+				JLabel faceLabel = new JLabel(new ImageIcon(subImg));
+				faceLabel.setBackground(Color.black);
+				faceLabel.setOpaque(true);
+				faceLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+				facePanel.add(faceLabel);
+				JButton selectFaceBtn = new JButton("Select");
+				selectFaceBtn.setFont(selectFaceBtn.getFont().deriveFont(10f));
+				selectFaceBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+				selectFaceBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+				selectFaceBtn.addActionListener(ae -> showFacePicker(faceSheet, 48, paramOffset, paramLen));
+				facePanel.add(selectFaceBtn);
+				jp.add(facePanel);
+			} catch (Exception ignored) {}
 			break;
-		case 's': //sfx
+		}
+		case 'i': {
 			try {
-				jp.add(new JLabel(sfxList.get(argNum)));
-			} catch (Exception ignored) {
-				jp.add(new JLabel(argNum + ""));
-			}
+				int tileSize = exeDat.getConfig().getTileSize();
+				int itemW = (tileSize > 16) ? 32 * (tileSize / 16) : 32;
+				int itemH = (tileSize > 16) ? 16 * (tileSize / 16) : 16;
+				BufferedImage itemSheet = rm.getImg(exeDat.getItemImageFile());
+				BufferedImage subImg = itemSheet.getSubimage(
+						itemW * (fArgNum % 8), itemH * (fArgNum / 8), itemW, itemH);
+				if (tileSize == 16) {
+					BufferedImage scaled = new BufferedImage(itemW * 2, itemH * 2, BufferedImage.TYPE_INT_ARGB);
+					Graphics2D g = scaled.createGraphics();
+					g.drawImage(subImg, 0, 0, itemW * 2, itemH * 2, null);
+					g.dispose();
+					subImg = scaled;
+				}
+				JPanel itemPanel = new JPanel();
+				itemPanel.setLayout(new BoxLayout(itemPanel, BoxLayout.Y_AXIS));
+				JLabel itemLabel = new JLabel(new ImageIcon(subImg));
+				itemLabel.setBackground(Color.black);
+				itemLabel.setOpaque(true);
+				itemLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+				itemPanel.add(itemLabel);
+				JButton selectItemBtn = new JButton("Select");
+				selectItemBtn.setFont(selectItemBtn.getFont().deriveFont(10f));
+				selectItemBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+				selectItemBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+				selectItemBtn.addActionListener(ae -> showItemPicker(itemSheet, 32, 16, paramOffset, paramLen));
+				itemPanel.add(selectItemBtn);
+				jp.add(itemPanel);
+			} catch (Exception ignored) {}
 			break;
-		case 'u': //music
-			try {
-				jp.add(new JLabel(musicList.get(argNum)));
-			} catch (Exception ignored) {
-				jp.add(new JLabel(argNum + ""));
-			}
-			break;
-		case 'E': //equip
-			if (equipList == null) {
-				jp.add(new JLabel(argNum + ""));
-				break;
-			}
-			String eq = "";
-			for (int i = 0; i < 16; i++)
-				if ((argNum & (1 << i)) != 0)
-					eq += equipList.get(i) + " + ";
-			if (eq.isEmpty())
-				eq = "None";
-			else
-				eq = eq.substring(0, eq.length() - 3);
-			jp.add(new JLabel(eq));
-			break;
+		}
 		}
 		commandListExtras.add(jp);
 	}
@@ -725,6 +1093,7 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 			listData.add(newCommand.commandCode + " - " + newCommand.name); //$NON-NLS-1$
 		}
 		Font f = new Font(Font.MONOSPACED, 0, 11);
+		
 		commandList = new BgList<>(listData, iMan.getImg(ResourceManager.rsrcBgWhite)); //$NON-NLS-1$
 		ListMan lm = new ListMan();
 		commandList.addListSelectionListener(lm);
@@ -758,7 +1127,7 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 		//commandList.setPreferredSize(new Dimension(100, 380));
 		commandList.setFont(f);
 		JScrollPane listScroll = new JScrollPane(commandList);
-		listScroll.setPreferredSize(new Dimension(160, 400));
+		listScroll.setPreferredSize(new Dimension(160, 375));
 		comLabel.setLineWrap(true);
 		comLabel.setWrapStyleWord(true);
 		comLabel.setEditable(false);
@@ -774,7 +1143,7 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 		labelHolder.add(comLabel);
 		labelHolder.add(descLabel);
 		JScrollPane labelScroll = new JScrollPane(labelHolder);
-		labelScroll.setPreferredSize(new Dimension(160, 180));
+		labelScroll.setPreferredSize(new Dimension(160, 130));
 		labelScroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER);
 
 		retVal.add(labelScroll);
@@ -953,6 +1322,7 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 				} else {
 					def1.set(keyIndex, value);
 				}
+				
 				//System.out.println("setkey notlast");
 			}
 		} else if (ac.equals(SET_VALUE)) {
@@ -1029,6 +1399,24 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 		String text = this.getText();
 		System.out.println(text);
 		System.out.println("가");
+		List<String> warnings = validateScript(text);
+		if (!warnings.isEmpty()) {
+			String fileName = scriptFile != null ? scriptFile.getName() : "?";
+			StringBuilder msg = new StringBuilder();
+			for (String w : warnings) {
+				msg.append("Warning! ").append(fileName).append(": ").append(w).append("\n");
+			}
+			Toolkit.getDefaultToolkit().beep();
+			JOptionPane pane = new JOptionPane(msg.toString(), JOptionPane.WARNING_MESSAGE,
+					JOptionPane.YES_NO_OPTION, null, new Object[]{"Save Anyway", "Don't Save"}, "Don't Save");
+			JDialog dialog = pane.createDialog(null, "Script Warnings");
+			dialog.setModalityType(java.awt.Dialog.ModalityType.APPLICATION_MODAL);
+			dialog.pack();
+			Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
+			dialog.setLocation((screen.width - dialog.getWidth()) / 2, (screen.height - dialog.getHeight()) / 2);
+			dialog.setVisible(true);
+			if (!"Save Anyway".equals(pane.getValue())) return;
+		}
 		try {
 			//save source
 			if (saveSource) {
@@ -1186,9 +1574,8 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 		BufferedReader commandFile;
 		StreamTokenizer tokenizer;
 		Vector<TscCommand> retVal = new Vector<>();
-		//Vector<TscCommand> result = new Vector<TscCommand>();
 		try {
-			commandFile = new BufferedReader(new FileReader("tsc_list.txt")); //$NON-NLS-1$
+			commandFile = new BufferedReader(new FileReader(getJarLocationFile("tsc_list.txt"))); //$NON-NLS-1$
 			tokenizer = new StreamTokenizer(commandFile);
 		} catch (FileNotFoundException e) {
 			StrTools.msgBox(Messages.getString("TscPane.11")); //$NON-NLS-1$
@@ -1311,7 +1698,7 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 	private static ArrayList<String> getMusicList() {
 		ArrayList<String> rv = new ArrayList<>();
 		try {
-			Scanner sc = new Scanner(new File("musiclist.txt"));
+			Scanner sc = new Scanner(getJarLocationFile("musiclist.txt"));
 			while (sc.hasNext()) {
 				sc.nextInt();
 				String sfxName = sc.nextLine();
@@ -1321,14 +1708,13 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 		} catch (FileNotFoundException err) {
 			StrTools.msgBox("Could not find musiclist.txt");
 		}
-
 		return rv;
 	}
 
 	private static ArrayList<String> getSfxList() {
 		ArrayList<String> rv = new ArrayList<>();
 		try {
-			Scanner sc = new Scanner(new File("sfxList.txt"));
+			Scanner sc = new Scanner(getJarLocationFile("sfxList.txt"));
 			while (sc.hasNext()) {
 				sc.nextInt();
 				sc.next(); //disregard hyphen
@@ -1339,14 +1725,13 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 		} catch (FileNotFoundException err) {
 			StrTools.msgBox("Could not find sfxList.txt");
 		}
-
 		return rv;
 	}
-	
+
 	private static ArrayList<String> getEquipList() {
 		ArrayList<String> rv = new ArrayList<>();
 		try {
-			Scanner sc = new Scanner(new File("equipList.txt"));
+			Scanner sc = new Scanner(getJarLocationFile("equipList.txt"));
 			while (sc.hasNext()) {
 				String sfxName = sc.nextLine();
 				rv.add(sfxName);
@@ -1355,38 +1740,86 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 		} catch (FileNotFoundException err) {
 			StrTools.msgBox("Could not find equipList.txt");
 		}
-
 		return rv;
 	}
 
-	private static void loadColorPresets() {
-		colorPresetColors = new ArrayList<>();
-		colorPresetNames = new ArrayList<>();
-		try {
-			Scanner sc = new Scanner(new File("colorPresets.txt"));
+	private static Set<String> loadEventEnders() {
+		Set<String> rv = new HashSet<>();
+		File f = getJarLocationFile("endlist.txt");
+		if (!f.exists()) {
+			rv.add("<END"); rv.add("<EVE"); rv.add("<TRA");
+			try (java.io.PrintWriter pw = new java.io.PrintWriter(f)) {
+				pw.println("<END"); pw.println("<EVE"); pw.println("<TRA");
+			} catch (IOException ignored) {}
+			return rv;
+		}
+		try (Scanner sc = new Scanner(f)) {
 			while (sc.hasNextLine()) {
 				String line = sc.nextLine().trim();
-				if (line.isEmpty() || line.startsWith("//")) continue;
-				int pOpen = line.indexOf('(');
-				int pClose = line.indexOf(')');
-				int qOpen = line.indexOf('"');
-				int qClose = line.lastIndexOf('"');
-				if (pOpen < 0 || pClose < 0 || qOpen < 0 || qClose <= qOpen) continue;
-				String[] rgb = line.substring(pOpen + 1, pClose).split(",");
-				if (rgb.length < 3) continue;
-				int r = Integer.parseInt(rgb[0].trim());
-				int g = Integer.parseInt(rgb[1].trim());
-				int b = Integer.parseInt(rgb[2].trim());
-				String name = line.substring(qOpen + 1, qClose);
-				colorPresetColors.add(new Color(
-					Math.max(0, Math.min(255, r)),
-					Math.max(0, Math.min(255, g)),
-					Math.max(0, Math.min(255, b))));
-				colorPresetNames.add(name);
+				if (!line.isEmpty()) rv.add(line);
 			}
-			sc.close();
-		} catch (FileNotFoundException ignored) {
-		} catch (NumberFormatException ignored) {
+		} catch (IOException ignored) {}
+		return rv;
+	}
+
+	private List<String> validateScript(String text) {
+		List<String> warnings = new ArrayList<>();
+		Set<String> knownCmds = new HashSet<>();
+		if (commandInf != null) {
+			for (TscCommand tc : commandInf) knownCmds.add(tc.commandCode);
+		}
+		String[] lines = text.replace("\r", "").split("\n", -1);
+		String currentEvent = null;
+		boolean ended = false, hasCmd = false;
+		String unknownCmd = null;
+		for (String rawLine : lines) {
+			String line = rawLine.trim();
+			if (line.isEmpty()) continue;
+			if (line.charAt(0) == '#') {
+				if (currentEvent != null) {
+					if (hasCmd && !ended)
+						warnings.add("Event #" + currentEvent + " doesn't end!");
+					if (unknownCmd != null)
+						warnings.add("Event #" + currentEvent + " '" + unknownCmd + "' is not a recognized command!");
+				}
+				currentEvent = line.length() >= 5 ? line.substring(1, 5) : line.substring(1);
+				ended = false; hasCmd = false; unknownCmd = null;
+				continue;
+			}
+			if (currentEvent == null || ended) continue;
+			if (line.startsWith("//")) continue;
+			int i = 0;
+			while (i < line.length()) {
+				if (i + 1 < line.length() && line.charAt(i) == '/' && line.charAt(i + 1) == '/') break;
+				if (line.charAt(i) == '<' && i + 4 <= line.length()) {
+					String cmd = line.substring(i, i + 4);
+					hasCmd = true;
+					if (knownCmds.contains(cmd)) {
+						if (eventEnders.contains(cmd)) ended = true;
+					} else if (unknownCmd == null) {
+						unknownCmd = cmd;
+					}
+					i += 4;
+				} else {
+					i++;
+				}
+			}
+		}
+		if (currentEvent != null) {
+			if (hasCmd && !ended) warnings.add("Event #" + currentEvent + " doesn't end!");
+			if (unknownCmd != null) warnings.add("Event #" + currentEvent + " '" + unknownCmd + "' is not a recognized command!");
+		}
+		return warnings;
+	}
+
+	private static File getJarLocationFile(String filename) {
+		try {
+			String jarPath = TscPane.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
+			File jarFile = new File(jarPath);
+			File jarDir = jarFile.isDirectory() ? jarFile : jarFile.getParentFile();
+			return new File(jarDir, filename);
+		} catch (Exception e) {
+			return new File(filename);
 		}
 	}
 
