@@ -1,44 +1,72 @@
-# Booster's Lab
-a Cave Story level editor
+# Dawg Studio  
+A Cave Story level editor built off of Noxid’s Booster’s Lab.
 
-# Overview and History
-This project began in early 2012 as a replacement for Cave Editor
-to complement my then-ongoing Cave Story fangame/rewrite. Certain features of Cave Editor (CE)
-didn't meet my needs and I also wanted to have the experience of creating a 2D map editor. 
-Also, I couldn't figure out how to build CE.
+# Purpose  
+In the current modding “era” (if you want to call it that) editors seem to have a bit of trouble keeping up with every new development. You’ll have to find workarounds to support a custom feature or just deal with it unsupported. I developed Dawg Studio to address this. Along with adding every other feature I’ve wanted.
 
-Since then, the project has grown to include many features not originally present in CE.
-It's also been built to accommodate editing certain other projects that use a Cave-Story-Like format.
-As a side-effect of 5 years of sporadic and careless development Booster's Lab has many rough edges and forgotten secrets.
-Knowing this, please approach the code with an open mind.
+# Features  
+I’m going to assume you’re familiar with Booster’s Lab. If not, that’s okay, too. This fork is very much suitable, and probably better to start with, than the original BL (even if you don’t know what any of this means yet). As for the features:
 
-# Building/Running
-Booster's Lab is included with project files for IntelliJ Idea Community Edition. If you would rather use
-a different tool then that's your decision but I probably won't be able to help you with it.
-Booster's Lab has no dependencies. The program has only one `main` method, located in `ca.noxid.lab.EditorApp`. To launch it from intelliJ, create
-a run configuration that launches that main method. To export a Jar, create an artifact that contains the compiled output of the program.
+### General
 
-# Organization
-The project's source files are separated into several packages, each grouping approximately similar functional
-units of the editor.
+- **Unique theme**  
+  - There is a new theme. It’s purple.  
+- **Recent Files**  
+  - Up to five of your recently loaded projects appear here.  
+- **Map Tab Reordering**  
+  - Map tabs can be dragged around and reordered.  
+- **Map Dragging**  
+  - Holding the middle click and moving your mouse will drag the map.  
+- **Tab Keybinds**  
+  - The tile, entity, script, and mapdata tabs have been binded to F1, F2, F3, and F4.  
+- **Editor Configuration**  
+  - A new window has been added under the actions tab. Here you can add/remove/edit TSC commands, END commands, songs, sound effects, equips, map bosses, and background types.  
+- **Unload Mod**  
+  - Replaced the “New” option. Unloads the current mod.
 
-- **ca.noxid.uiComponents**
-  - A collection of Swing components extended to have slightly different behaviour or, more often than not, textured backgrounds.
-- **ca.noxid.lab**
-  - Contains the main class, `EditorApp`, and several other classes that haven't been given a more specific category.
-  - **ca.noxid.lab.entity**
-    - Classes relating to the Entity view, including the npc.tbl editor
-  - **ca.noxid.lab.gameinfo**
-    - Classes that manipulate the Cave Story executable, and classes that contain information about the state
-      of the game/project
-  - **ca.noxid.lab.mapdata**
-    - relating specifically to the metadata of each specific map (e.g. which tileset it uses, what its name is, etc)
-  - **ca.noxid.lab.rsrc**
-    - holds all static resources used by the program such as images and default files, as well as the resource manager class.
-  - **ca.noxid.lab.script**
-    - Anything to do with TSC (text scripts)
-  - **ca.noxid.lab.tile**
-    - Classes used by the Tile view, including the tileset pane and linemode behaviour.
+### Script
+
+- **Window Docking**  
+  - You can now dock the script window.  
+- **Command Bar Position**  
+  - A “flip” button has been added allowing you to move the command bar from right to left and vice-versa.  
+- **Undo/Redo**  
+  - Ctrl-Z and Ctrl-Y for the script editor.  
+- **Command Input Boxes**  
+  - There are now input boxes for changing values.  
+- **List Selection**  
+  - Maps, Songs, SFXs, and Equips can be selected from a list now.  
+- **Graphic Selection**  
+  - Face Portraits, Items, and Weapon graphics can be selected from their image.  
+- **Six Operand Support**  
+  - Up to six operands are supported by the editor. (wwww:xxxx:yyyy:zzzz:qqqq:rrrr)  
+- **String Support**  
+  - String$ support has been added.  
+- **Flag Color**  
+  - Flag numbers have a slightly different color.  
+- **Goto Event**  
+  - Clicking the arrow next to event numbers will highlight them.  
+- **Zoom in/out**  
+  - Hold control and scroll to zoom in or out.  
+- **Standalone File Editing**  
+  - Drag and drop a .tsc or .txt file into the script tabs to load it.  
+- **Syntax Check**  
+  - The editor will check for syntax errors when saving a file. It also checks for events that haven’t ended. End commands are editable.  
+- **QoL**  
+  - Many tiny new QoL features that you may or may not ever experience.
+
+### Npc.tbl
+
+- **Visual Preview**  
+  - An accurate visual display based on the given sprite location numbers has been added. Hopefully now they are much less confusing.  
+- **Sprite Location**  
+  - The location of your sprite on the spritesheet.  
+- **Search Bar**  
+  - A search bar has been added.  
+- **Copy and Paste**  
+  - You can copy and paste NPC attributes from on to another.  
+- **Warning Prompt**  
+  - When saving or closing a warning will appear.
 
 
 
