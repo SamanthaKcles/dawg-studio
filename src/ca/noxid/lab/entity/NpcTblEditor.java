@@ -363,7 +363,6 @@ private JPanel buildMainEditorPane() {
 		c.gridwidth = 2;
 		c.weightx = 1.0;
 		retVal.add(tilesetList, c);
-		
 		c.gridx = 0;
 		c.gridy++;
 		c.gridwidth = 1;
@@ -373,7 +372,6 @@ private JPanel buildMainEditorPane() {
 		c.gridwidth = 2;
 		c.weightx = 1.0;
 		retVal.add(hurtList, c);
-		
 		c.gridx = 0;
 		c.gridy++;
 		c.gridwidth = 1;
@@ -383,7 +381,15 @@ private JPanel buildMainEditorPane() {
 		c.gridwidth = 2;
 		c.weightx = 1.0;
 		retVal.add(deathList, c);
-		
+		c.gridx = 0;
+		c.gridy++;
+		c.weightx = 0;
+		retVal.add(new JLabel("Size"), c);
+		c.gridx = 1;
+		c.gridwidth = 2;
+		c.weightx = 1.0;
+		sizeList.addActionListener(e -> persistChanges());
+		retVal.add(sizeList, c);
 		c.gridx = 0;
 		c.gridy++;
 		c.gridwidth = 1;
@@ -409,7 +415,6 @@ private JPanel buildMainEditorPane() {
 		c.weightx = 0.33;
 		dmgField.setPreferredSize(new Dimension(50, dmgField.getPreferredSize().height));
 		retVal.add(dmgField, c);
-		
 		c.gridx = 0;
 		c.gridy++;
 		c.gridwidth = 3;
