@@ -82,6 +82,7 @@ public class EditorApp extends JFrame implements ActionListener {
 	private static final String PREF_MISC = "misc_display_options"; //$NON-NLS-1$
 	private static final String PREF_SPRITE_SCALE = "sprite_scale"; //$NON-NLS-1$
 
+	// F1-F4 ( think)
 	public static final String PERSPECTIVE_TILE = "Tile"; //$NON-NLS-1$
 	public static final String PERSPECTIVE_ENTITY = "Entity"; //$NON-NLS-1$
 	public static final String PERSPECTIVE_TSC = "Script"; //$NON-NLS-1$
@@ -1013,7 +1014,7 @@ public class EditorApp extends JFrame implements ActionListener {
 		notes = new JTextPane();
 		notes.setText(notesText);
 		mapsPanel.add(notes, BorderLayout.SOUTH);
-		pane.setDividerLocation(150);
+		pane.setDividerLocation(200); // 150 > 200; lets you see just a little more
 	}
 
 	private void initHelperWindows() {
@@ -1928,6 +1929,23 @@ public class EditorApp extends JFrame implements ActionListener {
 		searchField.setMinimumSize(compSize);
 		searchField.setMaximumSize(compSize);
 		searchField.setAlignmentX(Component.LEFT_ALIGNMENT);
+		searchField.addKeyListener(new KeyAdapter() {
+			@Override
+			public void keyPressed(KeyEvent eve) {
+				if (eve.getKeyCode() == KeyEvent.VK_ENTER) {
+					airhorn();
+					entitySearchQuery = searchField.getText();
+					int selected = EditorApp.this.mapTabs.getSelectedIndex();
+					if (selected != -1) {
+						TabOrganizer currentTab = componentVec.get(selected);
+						EntityPane ep = currentTab.getEntity();
+						Vector<EntityData> eVec = exeData.getEntityList(categoryList.getSelectedValue(),
+								subcatList.getSelectedValue(), entitySearchQuery);
+						ep.getEntityList().setListData(eVec);
+						}
+					}
+				}
+			});
 		searchSizePanel.add(searchField);
 		searchSizePanel.add(Box.createVerticalStrut(4));
 
@@ -1964,6 +1982,23 @@ public class EditorApp extends JFrame implements ActionListener {
 		spriteSizeField.setMinimumSize(compSize);
 		spriteSizeField.setMaximumSize(compSize);
 		spriteSizeField.setAlignmentX(Component.LEFT_ALIGNMENT);
+		spriteSizeField.addKeyListener(new KeyAdapter() {
+			@Override
+			public void keyPressed(KeyEvent eve) {
+				if (eve.getKeyCode() == KeyEvent.VK_ENTER) {
+					try {
+						double val = Double.parseDouble(spriteSizeField.getText().trim());
+						if (val > 0) {
+							EditorApp.spriteScale = val;
+							airhorn();
+							refreshCurrentMap();
+						}
+					} catch (NumberFormatException ex) {
+
+					}
+				}
+			}
+		});
 		searchSizePanel.add(spriteSizeField);
 		searchSizePanel.add(Box.createVerticalStrut(4));
 

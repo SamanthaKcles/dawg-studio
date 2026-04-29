@@ -693,13 +693,43 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 		final int fArgNum = argNum;
 
 		switch (extraType) {
-		case 'A': case 'd': case 'F': case 'l': case 'N':
+		case 'A': case 'F': case 'l': case 'N':
 		case 'x': case 'y': case '#': case '.': {
 			JTextField tf = new JTextField(arg.trim(), 6);
 			tf.addActionListener(ae -> updateArgInScript(paramOffset, paramLen, tf.getText()));
 			jp.add(tf);
 			break;
 		}
+		// Direction
+		case 'd': {
+			String[] directions = {"Left", "Up", "Right", "Down", "Center"};
+			String dirName = "";
+			if (fArgNum >= 0 && fArgNum < directions.length) {
+				dirName = directions[fArgNum];
+			}
+			JLabel dirLabel = new JLabel(dirName);
+			dirLabel.setForeground(new Color(255, 150, 215));
+			dirLabel.setOpaque(true);
+			dirLabel.setBackground(new Color(60, 60, 80));
+			dirLabel.setBorder(BorderFactory.createCompoundBorder(
+				BorderFactory.createLineBorder(new Color(255, 150, 215), 1),
+				BorderFactory.createEmptyBorder(2, 4, 2, 4)));
+			dirLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+			dirLabel.setToolTipText("Direction");
+			dirLabel.addMouseListener(new MouseAdapter() {
+				@Override
+				public void mouseClicked(MouseEvent e) {
+					java.util.List<String> directionList = new ArrayList<>();
+					for (int i = 0; i < directions.length; i++) {
+						directionList.add(i + " - " + directions[i]);
+					}
+					showListPicker("Select Direction", directionList, fArgNum, paramOffset, paramLen);
+				}
+			});
+			jp.add(dirLabel);
+			break;
+		}
+		// String
 		case '$': {
 			String display = arg.endsWith("$") ? arg.substring(0, arg.length() - 1) : arg;
 			JTextField tf = new JTextField(display, 10);
@@ -707,6 +737,7 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 			jp.add(tf);
 			break;
 		}
+		// Event
 		case 'e': {
 			JTextField tf = new JTextField(arg.trim(), 5);
 			tf.addActionListener(ae -> updateArgInScript(paramOffset, paramLen, tf.getText()));
@@ -714,6 +745,7 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 			jp.add(new LinkLabel(">", new EventLink(arg)));
 			break;
 		}
+		// Map
 		case 'm': {
 			try {
 				Mapdata[] allMaps = exeDat.getMapdata();
@@ -744,6 +776,7 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 			}
 			break;
 		}
+		// NPC Type
 		case 'n': {
 			JPanel npcPanel = new JPanel();
 			npcPanel.setLayout(new BoxLayout(npcPanel, BoxLayout.Y_AXIS));
@@ -758,6 +791,7 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 			jp.add(npcPanel);
 			break;
 		}
+		// Music
 		case 'u': {
 			java.util.List<String> formattedMusic = new ArrayList<>();
 			for (int i = 0; i < musicList.size(); i++) formattedMusic.add(i + ": " + musicList.get(i).trim());
@@ -779,6 +813,7 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 			jp.add(musicLabel);
 			break;
 		}
+		// Sound
 		case 's': {
 			java.util.List<String> formattedSfx = new ArrayList<>();
 			for (int i = 0; i < sfxList.size(); i++) formattedSfx.add(i + ": " + sfxList.get(i).trim());
@@ -800,6 +835,7 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 			jp.add(sfxLabel);
 			break;
 		}
+		// Equip
 		case 'E': {
 			if (equipList == null || equipList.isEmpty()) {
 				JTextField tf = new JTextField(arg.trim(), 6);
@@ -835,6 +871,7 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 			jp.add(equipLabel);
 			break;
 		}
+		// Tile
 		case 't': {
 			JTextField tf = new JTextField(arg.trim(), 4);
 			tf.addActionListener(ae -> updateArgInScript(paramOffset, paramLen, tf.getText()));
@@ -860,6 +897,7 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 			} catch (RasterFormatException ignored) {}
 			break;
 		}
+		// Weapon
 		case 'a': {
 			try {
 				int tileSize = exeDat.getConfig().getTileSize();
@@ -890,6 +928,7 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 			} catch (Exception ignored) {}
 			break;
 		}
+		// Face
 		case 'f': {
 			try {
 				int faceNum = fArgNum % 1000;
@@ -922,6 +961,7 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 			} catch (Exception ignored) {}
 			break;
 		}
+		// Item
 		case 'i': {
 			try {
 				int tileSize = exeDat.getConfig().getTileSize();
@@ -1825,14 +1865,45 @@ public class TscPane extends JTextPane implements ActionListener, Changeable {
 
 	protected void textBoxKeyReleased(KeyEvent evt) {
 		JTextPane area = (JTextPane) evt.getSource();
-		if (evt.getKeyCode() == KeyEvent.VK_CONTROL
-				|| evt.getKeyCode() == KeyEvent.VK_SHIFT
-				|| evt.getKeyCode() == KeyEvent.VK_ALT) {
-			return;//do not mark changed if we just used the save shortcut
-		}
-		if (evt.getKeyCode() == KeyEvent.VK_S) {
+		switch (evt.getKeyCode()) {
+			case KeyEvent.VK_CONTROL:
+			case KeyEvent.VK_SHIFT:
+			case KeyEvent.VK_ALT:
+			case KeyEvent.VK_LEFT:
+			case KeyEvent.VK_RIGHT:
+			case KeyEvent.VK_UP:
+			case KeyEvent.VK_DOWN:
+			case KeyEvent.VK_HOME:
+			case KeyEvent.VK_PAGE_UP:
+			case KeyEvent.VK_PAGE_DOWN:
+			case KeyEvent.VK_END:
+			case KeyEvent.VK_F1:
+			case KeyEvent.VK_F2:
+			case KeyEvent.VK_F3:
+			case KeyEvent.VK_F4:
+			case KeyEvent.VK_F5:
+			case KeyEvent.VK_F6:
+			case KeyEvent.VK_F7:
+			case KeyEvent.VK_F8:
+			case KeyEvent.VK_F9:
+			case KeyEvent.VK_F10:
+			case KeyEvent.VK_F11:
+			case KeyEvent.VK_F12:
+			case KeyEvent.VK_CAPS_LOCK:
+			case KeyEvent.VK_NUM_LOCK:
+			case KeyEvent.VK_ESCAPE:
+			case KeyEvent.VK_WINDOWS:
+			return;
+			// do not mark changed if we just used the save shortcut
+			case KeyEvent.VK_S: {
 			if (justSaved) {
 				justSaved = false;
+				return;
+			}
+		}
+			// do not mark changed if we used Ctrl+A (doesn't work)
+			case KeyEvent.VK_A: {
+			if (evt.getKeyCode() == KeyEvent.VK_CONTROL)
 				return;
 			}
 		}
