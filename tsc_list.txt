@@ -37,7 +37,7 @@ $	string
 Tab and newline are token delimeters...
 TSC List revised by Jackalope and Lace
 
-[CE_TSC]	91
+[CE_TSC]	92
 <AE+	0	------	Arms Energy +	Refill all weapon ammo.
 <AM+	2	aA----	ArMs +	Give weapon W with X ammo. Use 0000 for infinite ammo.
 <AM-	1	a-----	ArMs -	Remove weapon W.
@@ -49,6 +49,7 @@ TSC List revised by Jackalope and Lace
 <CIL	0	------	Clear ILlustration	Clear illustration (during credits).
 <CLO	0	------	CLOse	Close message box.
 <CLR	0	------	CLeaR	Clear message box.
+<CML	4	#xyt--	Change Map Layer	Blah blah
 <CMP	3	xyt---	Change MaP	tile Change the tile at coordinates W:X to type Y. Produces smoke.
 <CMU	1	u-----	Change MUsic	Change music to song W.
 <CNP	3	Nnd---	Change NPc	Change all entities W to type X with direction Y.

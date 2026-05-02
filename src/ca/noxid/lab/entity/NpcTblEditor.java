@@ -20,6 +20,7 @@ import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.prefs.Preferences;
 
 public class NpcTblEditor extends JDialog implements ActionListener {
 
@@ -73,8 +74,15 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 	
 	private NpcPreviewPane previewPane;
 	private JComboBox<String> npcSheetSelector;
+	private JComboBox<String> spriteSourceSelector;
 	private EditorApp parentApp;
 	private boolean isPopulating = false;
+	
+	private JTextField gridColor1Field = new JTextField(6);
+	private JTextField gridColor2Field = new JTextField(6);
+	private JTextField gridWidthField = new JTextField(8);
+	private JTextField gridHeightField = new JTextField(8);
+	private static final Preferences prefs = Preferences.userNodeForPackage(NpcTblEditor.class);
 
 	public NpcTblEditor(Frame aFrame) {
 		super(aFrame);
@@ -232,15 +240,11 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 			private static final long serialVersionUID = 1371948856887331870L;
 			@Override
 			public void actionPerformed(ActionEvent eve) {
-				persistChanges();
 				if (currentEnt != null) {
 					copiedAttributes = new NpcTblClipboardData(currentEnt);
 					String data = copiedAttributes.serialize();
 					Toolkit.getDefaultToolkit().getSystemClipboard()
 							.setContents(new StringSelection(data), null);
-					if (pasteButton != null) {
-						pasteButton.setEnabled(true);
-					}
 				}
 			}
 		});
@@ -258,16 +262,14 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 					NpcTblClipboardData parsed = NpcTblClipboardData.deserialize(clip);
 					if (parsed != null) {
 						copiedAttributes = parsed;
+						copiedAttributes.applyTo(currentEnt);
+						setEntity(currentEnt);
 					}
 				} catch (Exception ignored) {
 				}
-				if (copiedAttributes == null) return;
-				copiedAttributes.applyTo(currentEnt);
-				setEntity(currentEnt);
 			}
 		});
 		pasteButton.setText("Paste");
-		pasteButton.setEnabled(false);
 		buttonPanel.add(pasteButton);
 		
 		JButton saveButton = new JButton(new AbstractAction() {
@@ -281,11 +283,27 @@ public class NpcTblEditor extends JDialog implements ActionListener {
 				persistChanges();
 				exeData.setEntities(dataCopy); 
 				exeData.saveNpcTbl();
+			}
+		});
+		saveButton.setText("Save");
+		buttonPanel.add(saveButton);
+		
+		JButton saveCloseButton = new JButton(new AbstractAction() {
+			private static final long serialVersionUID = 8192459460809148680L;
+			@Override
+			public void actionPerformed(ActionEvent eve) {
+				int result = JOptionPane.showConfirmDialog(NpcTblEditor.this,
+						"Are you sure you want to save?", "Warning!",
+						JOptionPane.YES_NO_OPTION);
+				if (result != JOptionPane.YES_OPTION) return;
+				persistChanges();
+				exeData.setEntities(dataCopy); 
+				exeData.saveNpcTbl();
 				setVisible(false);
 			}
 		});
-		saveButton.setText(Messages.getString("NpcTblEditor.50")); //$NON-NLS-1$
-		buttonPanel.add(saveButton);
+		saveCloseButton.setText(Messages.getString("NpcTblEditor.50")); //$NON-NLS-1$
+		buttonPanel.add(saveCloseButton);
 		
 		JButton cancelButton = new JButton(new AbstractAction() {
 			private static final long serialVersionUID = 320754668181434348L;
@@ -362,6 +380,7 @@ private JPanel buildMainEditorPane() {
 		c.gridx = 1;
 		c.gridwidth = 2;
 		c.weightx = 1.0;
+		tilesetList.addActionListener(e -> { if (!isPopulating) persistChanges(); });
 		retVal.add(tilesetList, c);
 		c.gridx = 0;
 		c.gridy++;
@@ -371,6 +390,7 @@ private JPanel buildMainEditorPane() {
 		c.gridx = 1;
 		c.gridwidth = 2;
 		c.weightx = 1.0;
+		hurtList.addActionListener(e -> { if (!isPopulating) persistChanges(); });
 		retVal.add(hurtList, c);
 		c.gridx = 0;
 		c.gridy++;
@@ -380,6 +400,7 @@ private JPanel buildMainEditorPane() {
 		c.gridx = 1;
 		c.gridwidth = 2;
 		c.weightx = 1.0;
+		deathList.addActionListener(e -> { if (!isPopulating) persistChanges(); });
 		retVal.add(deathList, c);
 		c.gridx = 0;
 		c.gridy++;
@@ -388,7 +409,7 @@ private JPanel buildMainEditorPane() {
 		c.gridx = 1;
 		c.gridwidth = 2;
 		c.weightx = 1.0;
-		sizeList.addActionListener(e -> persistChanges());
+		sizeList.addActionListener(e -> { if (!isPopulating) persistChanges(); });
 		retVal.add(sizeList, c);
 		c.gridx = 0;
 		c.gridy++;
@@ -399,22 +420,58 @@ private JPanel buildMainEditorPane() {
 		c.weightx = 0.33;
 		hpField.setPreferredSize(new Dimension(50, hpField.getPreferredSize().height));
 		retVal.add(hpField, c);
+		c.gridx = 2;
+		c.weightx = 1.0;
+		c.gridwidth = 2;
+		c.fill = GridBagConstraints.HORIZONTAL;
+		JPanel gridSizePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
+		gridSizePanel.add(new JLabel("Grid"));
+		gridWidthField.setText(prefs.get("gridWidth", "64"));
+		gridWidthField.addActionListener(e -> updateGridSettings());
+		gridSizePanel.add(gridWidthField);
+		gridSizePanel.add(new JLabel("x"));
+		gridHeightField.setText(prefs.get("gridHeight", "64"));
+		gridHeightField.addActionListener(e -> updateGridSettings());
+		gridSizePanel.add(gridHeightField);
+		retVal.add(gridSizePanel, c);
 		c.gridx = 0;
 		c.gridy++;
+		c.gridwidth = 1;
 		c.weightx = 0;
 		retVal.add(new JLabel("Experience"), c);
 		c.gridx = 1;
 		c.weightx = 0.33;
 		xpField.setPreferredSize(new Dimension(50, xpField.getPreferredSize().height));
 		retVal.add(xpField, c);
+		c.gridx = 2;
+		c.gridwidth = 2;
+		c.weightx = 1.0;
+		c.fill = GridBagConstraints.HORIZONTAL;
+		JPanel color1Panel = new JPanel(new BorderLayout(2, 0));
+		color1Panel.add(new JLabel("#"), BorderLayout.WEST);
+		gridColor1Field.setText(prefs.get("gridColor1", "939393"));
+		gridColor1Field.addActionListener(e -> updateGridSettings());
+		color1Panel.add(gridColor1Field, BorderLayout.CENTER);
+		retVal.add(color1Panel, c);
 		c.gridx = 0;
 		c.gridy++;
+		c.gridwidth = 1;
 		c.weightx = 0;
 		retVal.add(new JLabel("Damage"), c);
 		c.gridx = 1;
 		c.weightx = 0.33;
 		dmgField.setPreferredSize(new Dimension(50, dmgField.getPreferredSize().height));
 		retVal.add(dmgField, c);
+		c.gridx = 2;
+		c.gridwidth = 2;
+		c.weightx = 1.0;
+		c.fill = GridBagConstraints.HORIZONTAL;
+		JPanel color2Panel = new JPanel(new BorderLayout(2, 0));
+		color2Panel.add(new JLabel("#"), BorderLayout.WEST);
+		gridColor2Field.setText(prefs.get("gridColor2", "b1b1b1"));
+		gridColor2Field.addActionListener(e -> updateGridSettings());
+		color2Panel.add(gridColor2Field, BorderLayout.CENTER);
+		retVal.add(color2Panel, c);
 		c.gridx = 0;
 		c.gridy++;
 		c.gridwidth = 3;
@@ -490,10 +547,17 @@ private JPanel buildMainEditorPane() {
 		sc.gridy = 0;
 		sc.anchor = GridBagConstraints.WEST;
 		sc.insets = new Insets(2, 2, 2, 2);
-		spriteSelectPanel.add(new JLabel("Sprite"), sc);
+		spriteSelectPanel.add(new JLabel("Loads"), sc);
 		sc.gridx = 1;
 		sc.weightx = 1.0;
 		sc.fill = GridBagConstraints.HORIZONTAL;
+		spriteSourceSelector = new JComboBox<>(new String[]{"NPC", "STAGE", "DATA"});
+		spriteSourceSelector.addActionListener(e -> { if (!isPopulating) updateSpriteList(); });
+		spriteSelectPanel.add(spriteSourceSelector, sc);
+		sc.gridx = 0;
+		sc.gridy++;
+		spriteSelectPanel.add(new JLabel("Sprite"), sc);
+		sc.gridx = 1;
 		npcSheetSelector = new JComboBox<>();
 		npcSheetSelector.addActionListener(e -> loadNpcSheet());
 		spriteSelectPanel.add(npcSheetSelector, sc);
@@ -614,9 +678,7 @@ public void populate(GameInfo inf) {
 		isPopulating = true;
 		//init list of entities
 		copiedAttributes = null;
-		if (pasteButton != null) {
-			pasteButton.setEnabled(false);
-		}
+
 		dataCopy = new ArrayList<>();
 		for (int i = 0; i < inf.getAllEntities().length; i++) {
 			dataCopy.add(new EntityData(inf.getAllEntities()[i]));
@@ -642,12 +704,9 @@ public void populate(GameInfo inf) {
 			tilesetList.addItem(s);
 		}
 		
-		if (npcSheetSelector != null) {
-			npcSheetSelector.removeAllItems();
-			String[] sheets = inf.getNpcSheets();
-			for (String sheet : sheets) {
-				npcSheetSelector.addItem(sheet);
-			}
+		if (spriteSourceSelector != null) {
+			spriteSourceSelector.setSelectedIndex(0);
+			updateSpriteList();
 		}
 		
 		if (previewPane != null) {
@@ -656,14 +715,14 @@ public void populate(GameInfo inf) {
 			previewPane.setScale(3.0);
 		}
 		
-		if (!filteredData.isEmpty()) {
-			entList.setSelectedIndex(0);
-			setEntity(filteredData.get(0));
-		}
 		isPopulating = false;
+		if (!filteredData.isEmpty()) {
+			SwingUtilities.invokeLater(() -> entList.setSelectedIndex(0));
+		}
 	}
 	
 	private void setEntity(EntityData ent) {
+		isPopulating = true;
 		currentEnt = ent;
 		//info
 		numLabel.setText(String.valueOf(ent.getID()));
@@ -674,6 +733,26 @@ public void populate(GameInfo inf) {
 		//TODO set up category tree
 		//noxid this idea is poop sorry
 		
+		if (spriteSourceSelector != null) {
+			String source = ent.getSpriteSource();
+			if ("STAGE".equals(source)) {
+				spriteSourceSelector.setSelectedIndex(1);
+			} else if ("DATA".equals(source)) {
+				spriteSourceSelector.setSelectedIndex(2);
+			} else {
+				spriteSourceSelector.setSelectedIndex(0);
+			}
+			updateSpriteList();
+		}
+		if (npcSheetSelector != null && npcSheetSelector.getItemCount() > 0) {
+			String file = ent.getSpriteFile();
+			for (int i = 0; i < npcSheetSelector.getItemCount(); i++) {
+				if (file.equals(npcSheetSelector.getItemAt(i))) {
+					npcSheetSelector.setSelectedIndex(i);
+					break;
+				}
+			}
+		}
 		
 		//hitbox
 		Rectangle hitRect = ent.getHit();
@@ -709,19 +788,37 @@ public void populate(GameInfo inf) {
 		hpField.setText(String.valueOf(ent.getHP()));
 		xpField.setText(String.valueOf(ent.getXP()));
 		dmgField.setText(String.valueOf(ent.getDmg()));
-		if (ent.getSize() >= 0 && ent.getSize() < sizeList.getItemCount()) {
-			sizeList.setSelectedIndex(ent.getSize());
-		}
-		if (ent.getHurt() >= 0 && ent.getHurt() < hurtList.getItemCount()) {
-			hurtList.setSelectedIndex(ent.getHurt());
-		}
-		if (ent.getDeath() >= 0 && ent.getDeath() < deathList.getItemCount()) {
-			deathList.setSelectedIndex(ent.getDeath());
-		}
-		if (ent.getTileset() >= 0 && ent.getTileset() < tilesetList.getItemCount()) {
-			tilesetList.setSelectedIndex(ent.getTileset());
+		
+		// Set combobox values - ensure they're set even if out of bounds
+		int size = ent.getSize();
+		if (size >= 0 && size < sizeList.getItemCount()) {
+			sizeList.setSelectedIndex(size);
+		} else if (sizeList.getItemCount() > 0) {
+			sizeList.setSelectedIndex(0);
 		}
 		
+		int hurt = ent.getHurt();
+		if (hurt >= 0 && hurt < hurtList.getItemCount()) {
+			hurtList.setSelectedIndex(hurt);
+		} else if (hurtList.getItemCount() > 0) {
+			hurtList.setSelectedIndex(0);
+		}
+		
+		int death = ent.getDeath();
+		if (death >= 0 && death < deathList.getItemCount()) {
+			deathList.setSelectedIndex(death);
+		} else if (deathList.getItemCount() > 0) {
+			deathList.setSelectedIndex(0);
+		}
+		
+		int tileset = ent.getTileset();
+		if (tileset >= 0 && tileset < tilesetList.getItemCount()) {
+			tilesetList.setSelectedIndex(tileset);
+		} else if (tilesetList.getItemCount() > 0) {
+			tilesetList.setSelectedIndex(0);
+		}
+		
+		isPopulating = false;
 		updatePreview();
 	}
 	
@@ -754,15 +851,83 @@ public void populate(GameInfo inf) {
 		} catch (NumberFormatException ignored) {}
 	}
 	
+	private void updateGridSettings() {
+		if (previewPane == null) return;
+		try {
+			String c1 = gridColor1Field.getText();
+			String c2 = gridColor2Field.getText();
+			int w = Integer.parseInt(gridWidthField.getText());
+			int h = Integer.parseInt(gridHeightField.getText());
+			prefs.put("gridColor1", c1);
+			prefs.put("gridColor2", c2);
+			prefs.put("gridWidth", String.valueOf(w));
+			prefs.put("gridHeight", String.valueOf(h));
+			previewPane.setGridColors(new Color(Integer.parseInt(c1, 16)), new Color(Integer.parseInt(c2, 16)));
+			previewPane.setGridSize(w, h);
+		} catch (NumberFormatException ignored) {}
+	}
+	
+	private void updateSpriteList() {
+		if (exeData == null || npcSheetSelector == null || spriteSourceSelector == null) return;
+		String currentSelection = (String) npcSheetSelector.getSelectedItem();
+		boolean wasPopulating = isPopulating;
+		isPopulating = true;
+		npcSheetSelector.removeAllItems();
+		String source = (String) spriteSourceSelector.getSelectedItem();
+		if ("NPC".equals(source)) {
+			String[] sheets = exeData.getNpcSheets();
+			for (String sheet : sheets) {
+				npcSheetSelector.addItem(sheet);
+			}
+		} else if ("STAGE".equals(source)) {
+			String[] sheets = exeData.getTilesets();
+			for (String sheet : sheets) {
+				npcSheetSelector.addItem(sheet);
+			}
+		} else if ("DATA".equals(source)) {
+			String imageExtension = exeData.getImgExtension();
+			java.io.File dataDir = exeData.getDataDirectory();
+			java.io.File[] files = dataDir.listFiles((dir, name) -> {
+				String lower = name.toLowerCase();
+				return lower.endsWith(".pbm") || lower.endsWith(".bmp") || lower.endsWith(".png");
+			});
+			if (files != null) {
+				for (java.io.File f : files) {
+					npcSheetSelector.addItem(f.getName().replace(imageExtension, ""));
+				}
+			}
+		}
+		isPopulating = wasPopulating;
+		if (currentSelection != null) {
+			for (int i = 0; i < npcSheetSelector.getItemCount(); i++) {
+				if (currentSelection.equals(npcSheetSelector.getItemAt(i))) {
+					npcSheetSelector.setSelectedIndex(i);
+					return;
+				}
+			}
+		}
+		if (npcSheetSelector.getItemCount() > 0) {
+			npcSheetSelector.setSelectedIndex(0);
+		}
+	}
+	
 	private void loadNpcSheet() {
-		if (exeData == null || npcSheetSelector == null) return;
+		if (exeData == null || npcSheetSelector == null || spriteSourceSelector == null) return;
 		String sheetName = (String) npcSheetSelector.getSelectedItem();
 		if (sheetName == null) return;
 		ResourceManager iMan = parentApp.getImageManager();
-		java.io.File npcFile = new java.io.File(exeData.getDataDirectory() + "/Npc/" + sheetName + exeData.getImgExtension());
-		if (npcFile.exists()) {
-			iMan.addImage(npcFile, 1);
-			previewPane.setNpcSheet(iMan.getImg(npcFile));
+		String source = (String) spriteSourceSelector.getSelectedItem();
+		java.io.File spriteFile = null;
+		if ("NPC".equals(source)) {
+			spriteFile = new java.io.File(exeData.getDataDirectory() + "/Npc/" + sheetName + exeData.getImgExtension());
+		} else if ("STAGE".equals(source)) {
+			spriteFile = new java.io.File(exeData.getDataDirectory() + "/Stage/" + sheetName + exeData.getImgExtension());
+		} else if ("DATA".equals(source)) {
+			spriteFile = new java.io.File(exeData.getDataDirectory() + "/" + sheetName + exeData.getImgExtension());
+		}
+		if (spriteFile != null && spriteFile.exists()) {
+			iMan.addImage(spriteFile, 1);
+			previewPane.setNpcSheet(iMan.getImg(spriteFile));
 		}
 	}
 	
@@ -813,51 +978,62 @@ public void populate(GameInfo inf) {
 
 	private void persistChanges() {
 		if (currentEnt == null) return;
-		Rectangle hr = currentEnt.getHit();
-		Rectangle dr = currentEnt.getDisplay();
+		try {
+			if (spriteSourceSelector != null) {
+				currentEnt.setSpriteSource((String) spriteSourceSelector.getSelectedItem());
+			}
+			if (npcSheetSelector != null && npcSheetSelector.getSelectedItem() != null) {
+				currentEnt.setSpriteFile((String) npcSheetSelector.getSelectedItem());
+			}
+			
+			Rectangle hr = currentEnt.getHit();
+			Rectangle dr = currentEnt.getDisplay();
 
-		hr.x = Integer.parseInt(hitboxL.getText());
-		currentEnt.setHit(hr);
-		hr.y = Integer.parseInt(hitboxU.getText());
-		currentEnt.setHit(hr);
-		hr.width = Integer.parseInt(hitboxR.getText());
-		currentEnt.setHit(hr);	
-		hr.height = Integer.parseInt(hitboxD.getText());
-		currentEnt.setHit(hr);
-		dr.x = Integer.parseInt(spriteOffX.getText());
-		currentEnt.setDisplay(dr);
-		dr.y = Integer.parseInt(spriteOffY.getText());
-		currentEnt.setDisplay(dr);
-		dr.width = Integer.parseInt(widthField.getText());
-		currentEnt.setDisplay(dr);
-		dr.height = 0;
-		currentEnt.setDisplay(dr);
-		Rectangle fr = currentEnt.getFramerect();
-		fr.x = Integer.parseInt(spriteLeft.getText()) * 2;
-		fr.y = Integer.parseInt(spriteTop.getText()) * 2;
-		fr.width = Integer.parseInt(spriteRight.getText()) * 2;
-		fr.height = Integer.parseInt(spriteBottom.getText()) * 2;
-		currentEnt.setFramerect(fr);
-		currentEnt.setName(nameLabel.getText());
-		currentEnt.setShort1(short1Label.getText());
-		currentEnt.setShort2(short2Label.getText());
-		currentEnt.setDesc(descArea.getText());
-		int hp = Integer.parseInt(hpField.getText());
-		currentEnt.setHP(hp);
-		int xp = Integer.parseInt(xpField.getText());
-		currentEnt.setXP(xp);
-		int dmg = Integer.parseInt(dmgField.getText());
-		currentEnt.setDmg(dmg);
-		currentEnt.setSize(sizeList.getSelectedIndex());
-		currentEnt.setHurt(hurtList.getSelectedIndex());
-		currentEnt.setDeath(deathList.getSelectedIndex());
-		currentEnt.setTileset(tilesetList.getSelectedIndex());
+			hr.x = Integer.parseInt(hitboxL.getText());
+			currentEnt.setHit(hr);
+			hr.y = Integer.parseInt(hitboxU.getText());
+			currentEnt.setHit(hr);
+			hr.width = Integer.parseInt(hitboxR.getText());
+			currentEnt.setHit(hr);	
+			hr.height = Integer.parseInt(hitboxD.getText());
+			currentEnt.setHit(hr);
+			dr.x = Integer.parseInt(spriteOffX.getText());
+			currentEnt.setDisplay(dr);
+			dr.y = Integer.parseInt(spriteOffY.getText());
+			currentEnt.setDisplay(dr);
+			dr.width = Integer.parseInt(widthField.getText());
+			currentEnt.setDisplay(dr);
+			dr.height = 0;
+			currentEnt.setDisplay(dr);
+			Rectangle fr = currentEnt.getFramerect();
+			fr.x = Integer.parseInt(spriteLeft.getText()) * 2;
+			fr.y = Integer.parseInt(spriteTop.getText()) * 2;
+			fr.width = Integer.parseInt(spriteRight.getText()) * 2;
+			fr.height = Integer.parseInt(spriteBottom.getText()) * 2;
+			currentEnt.setFramerect(fr);
+			currentEnt.setName(nameLabel.getText());
+			currentEnt.setShort1(short1Label.getText());
+			currentEnt.setShort2(short2Label.getText());
+			currentEnt.setDesc(descArea.getText());
+			int hp = Integer.parseInt(hpField.getText());
+			currentEnt.setHP(hp);
+			int xp = Integer.parseInt(xpField.getText());
+			currentEnt.setXP(xp);
+			int dmg = Integer.parseInt(dmgField.getText());
+			currentEnt.setDmg(dmg);
+			currentEnt.setSize(sizeList.getSelectedIndex());
+			currentEnt.setHurt(hurtList.getSelectedIndex());
+			currentEnt.setDeath(deathList.getSelectedIndex());
+			currentEnt.setTileset(tilesetList.getSelectedIndex());
+		} catch (NumberFormatException e) {
+		}
 	}
 
 	private static class NpcTblClipboardData {
-		private static final String PREFIX = "BLNPC|";
+		private static final String PREFIX = "DAWGNPC|";
 		private final Rectangle hitbox;
 		private final Rectangle display;
+		private final Rectangle spriteLocation;
 		private final int flags;
 		private final int hp;
 		private final int xp;
@@ -870,6 +1046,7 @@ public void populate(GameInfo inf) {
 		private NpcTblClipboardData(EntityData ent) {
 			hitbox = ent.getHit();
 			display = ent.getDisplay();
+			spriteLocation = ent.getFramerect();
 			flags = ent.getFlags();
 			hp = ent.getHP();
 			xp = ent.getXP();
@@ -880,10 +1057,11 @@ public void populate(GameInfo inf) {
 			tileset = ent.getTileset();
 		}
 
-		private NpcTblClipboardData(Rectangle hitbox, Rectangle display, int flags,
-				int hp, int xp, int dmg, int size, int hurt, int death, int tileset) {
+		private NpcTblClipboardData(Rectangle hitbox, Rectangle display, Rectangle spriteLocation,
+				int flags, int hp, int xp, int dmg, int size, int hurt, int death, int tileset) {
 			this.hitbox = hitbox;
 			this.display = display;
+			this.spriteLocation = spriteLocation;
 			this.flags = flags;
 			this.hp = hp;
 			this.xp = xp;
@@ -897,7 +1075,8 @@ public void populate(GameInfo inf) {
 		private String serialize() {
 			return PREFIX +
 					hitbox.x + "," + hitbox.y + "," + hitbox.width + "," + hitbox.height + "|" +
-					display.x + "," + display.y + "," + display.width + "," + display.height + "|" +
+					display.x + "," + display.y + "," + display.width + "|" +
+					spriteLocation.x + "," + spriteLocation.y + "," + spriteLocation.width + "," + spriteLocation.height + "|" +
 					flags + "|" + hp + "|" + xp + "|" + dmg + "|" +
 					size + "|" + hurt + "|" + death + "|" + tileset;
 		}
@@ -906,19 +1085,22 @@ public void populate(GameInfo inf) {
 			if (s == null || !s.startsWith(PREFIX)) return null;
 			try {
 				String[] parts = s.substring(PREFIX.length()).split("\\|");
-				if (parts.length != 10) return null;
+				if (parts.length != 11) return null;
 				String[] h = parts[0].split(",");
 				String[] d = parts[1].split(",");
-				if (h.length != 4 || d.length != 4) return null;
+				String[] sl = parts[2].split(",");
+				if (h.length != 4 || d.length != 3 || sl.length != 4) return null;
 				return new NpcTblClipboardData(
 						new Rectangle(Integer.parseInt(h[0]), Integer.parseInt(h[1]),
 								Integer.parseInt(h[2]), Integer.parseInt(h[3])),
 						new Rectangle(Integer.parseInt(d[0]), Integer.parseInt(d[1]),
-								Integer.parseInt(d[2]), Integer.parseInt(d[3])),
-						Integer.parseInt(parts[2]), Integer.parseInt(parts[3]),
-						Integer.parseInt(parts[4]), Integer.parseInt(parts[5]),
-						Integer.parseInt(parts[6]), Integer.parseInt(parts[7]),
-						Integer.parseInt(parts[8]), Integer.parseInt(parts[9]));
+								Integer.parseInt(d[2]), 0),
+						new Rectangle(Integer.parseInt(sl[0]), Integer.parseInt(sl[1]),
+								Integer.parseInt(sl[2]), Integer.parseInt(sl[3])),
+						Integer.parseInt(parts[3]), Integer.parseInt(parts[4]),
+						Integer.parseInt(parts[5]), Integer.parseInt(parts[6]),
+						Integer.parseInt(parts[7]), Integer.parseInt(parts[8]),
+						Integer.parseInt(parts[9]), Integer.parseInt(parts[10]));
 			} catch (NumberFormatException e) {
 				return null;
 			}
@@ -927,6 +1109,7 @@ public void populate(GameInfo inf) {
 		private void applyTo(EntityData ent) {
 			ent.setHit(new Rectangle(hitbox));
 			ent.setDisplay(new Rectangle(display));
+			ent.setFramerect(new Rectangle(spriteLocation));
 			ent.setFlags(flags);
 			ent.setHP(hp);
 			ent.setXP(xp);

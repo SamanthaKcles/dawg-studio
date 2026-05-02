@@ -13,6 +13,10 @@ public class NpcPreviewPane extends JPanel {
 	private double scale = 2.0;
 	private int entityResolution;
 	private boolean faceRight = false;
+	private Color gridColor1 = new Color(0x939393);
+	private Color gridColor2 = new Color(0xb1b1b1);
+	private int gridWidth = 64;
+	private int gridHeight = 64;
 
 	public NpcPreviewPane(ResourceManager iMan) {
 		this.iMan = iMan;
@@ -44,13 +48,34 @@ public class NpcPreviewPane extends JPanel {
 		this.faceRight = faceRight;
 		repaint();
 	}
+	
+	public void setGridColors(Color c1, Color c2) {
+		this.gridColor1 = c1;
+		this.gridColor2 = c2;
+		repaint();
+	}
+	
+	public void setGridSize(int width, int height) {
+		this.gridWidth = width;
+		this.gridHeight = height;
+		repaint();
+	}
 
 	@Override
 	protected void paintComponent(Graphics g) {
 		super.paintComponent(g);
-		if (currentEntity == null) return;
-
+		
 		Graphics2D g2d = (Graphics2D) g;
+		
+		// A GRID BRO YUM !
+		for (int y = 0; y < getHeight(); y += gridHeight) {
+			for (int x = 0; x < getWidth(); x += gridWidth) {
+				g2d.setColor(((x / gridWidth + y / gridHeight) % 2 == 0) ? gridColor1 : gridColor2);
+				g2d.fillRect(x, y, gridWidth, gridHeight);
+			}
+		}
+		
+		if (currentEntity == null) return;
 		int centerX = getWidth() / 2;
 		int centerY = getHeight() / 2;
 
@@ -102,8 +127,5 @@ public class NpcPreviewPane extends JPanel {
 		int hitW = (int)((hit.width + hit.x) * scale);
 		int hitH = (int)((hit.height + hit.y) * scale);
 		g2d.drawRect(hitX, hitY, hitW, hitH);
-
-		g2d.setColor(Color.WHITE);
-		g2d.fillOval(centerX - 2, centerY - 2, 4, 4);
 	}
 }

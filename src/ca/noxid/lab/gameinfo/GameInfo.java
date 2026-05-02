@@ -592,17 +592,17 @@ public class GameInfo {
 			
 			//build the master list
 			for (int i = 0; i < calculated_npcs; i++) {
-				EntityData e = new EntityData(i, damageDat[i], deathDat[i],
-						expDat[i], flagDat[i], healthDat[i], hurtDat[i],
-						sizeDat[i], tilesetDat[i], 
-						new Rectangle( displayDat[i*4],
-							displayDat[i*4 + 1],
-							displayDat[i*4 + 2],
-							displayDat[i*4 + 3]	),
-						new Rectangle( hitboxDat[i*4],
-							hitboxDat[i*4 + 1],
-							hitboxDat[i*4 + 2],
-							hitboxDat[i*4 + 3] ) );
+				EntityData e = new EntityData(i, damageDat[i], deathDat[i] & 0xFF,
+						expDat[i], flagDat[i], healthDat[i], hurtDat[i] & 0xFF,
+						sizeDat[i] & 0xFF, tilesetDat[i] & 0xFF, 
+						new Rectangle( displayDat[i*4] & 0xFF,
+							displayDat[i*4 + 1] & 0xFF,
+							displayDat[i*4 + 2] & 0xFF,
+							displayDat[i*4 + 3] & 0xFF	),
+						new Rectangle( hitboxDat[i*4] & 0xFF,
+							hitboxDat[i*4 + 1] & 0xFF,
+							hitboxDat[i*4 + 2] & 0xFF,
+							hitboxDat[i*4 + 3] & 0xFF ) );
 				masterEntityList.add(i, e);
 			}
 			
@@ -645,9 +645,20 @@ public class GameInfo {
 						//System.out.println(e.getName());
 						e.setFramerect(str2Rect(lineScan.next()));
 						e.setDesc(lineScan.next());
-						//add to specialized categories
+						//FUN!
 						if (lineScan.hasNext()) {
-							String catStr = lineScan.next();
+							String nextToken = lineScan.next();
+							if (nextToken.contains(":") && (nextToken.startsWith("NPC:") || nextToken.startsWith("STAGE:") || nextToken.startsWith("DATA:"))) {
+								String[] spriteParts = nextToken.split(":", 2);
+								e.setSpriteSource(spriteParts[0]);
+								e.setSpriteFile(spriteParts[1]);
+								if (!lineScan.hasNext()) {
+									lineScan.close();
+									continue;
+								}
+								nextToken = lineScan.next();
+							}
+							String catStr = nextToken;
 							Scanner catScan = new Scanner(catStr);
 							while (catScan.hasNext()) {
 								catStr = catScan.next();
@@ -831,6 +842,7 @@ public class GameInfo {
 				output += e.getName() + "\t";
 				output += rect2Str(e.getFramerect()) + "\t";
 				output += e.getDesc() + "\t";
+				output += e.getSpriteSource() + ":" + e.getSpriteFile() + "\t";
 				for (String c : e.categories.keySet()) {
 					for (String sc : e.categories.get(c)) {
 						output += c + ":" + sc + " ";

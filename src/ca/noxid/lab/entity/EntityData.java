@@ -150,6 +150,24 @@ public class EntityData  implements Changeable{
 		}
 	}
 	
+	private String spriteSource = "NPC";
+	public String getSpriteSource() {return spriteSource;}
+	public void setSpriteSource(String s) {
+		if (spriteSource == null || !spriteSource.equals(s)) {
+			spriteSource = s;
+			markChanged();
+		}
+	}
+	
+	private String spriteFile = "Npc0";
+	public String getSpriteFile() {return spriteFile;}
+	public void setSpriteFile(String s) {
+		if (spriteFile == null || !spriteFile.equals(s)) {
+			spriteFile = s;
+			markChanged();
+		}
+	}
+	
 	//for changeable
 	private boolean modified = false;
 	
@@ -233,6 +251,8 @@ public class EntityData  implements Changeable{
 		tbl_tileset = other.tbl_tileset;
 		tbl_display = new Rectangle(other.tbl_display);
 		tbl_hitbox = new Rectangle(other.tbl_hitbox);
+		spriteSource = other.spriteSource;
+		spriteFile = other.spriteFile;
 		categories.putAll(other.categories);
 	}
 	
